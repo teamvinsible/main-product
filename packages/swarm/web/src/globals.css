@@ -1,0 +1,80 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Futuristic control-panel theme mapped into shadcn tokens. */
+:root {
+  --background: 210 29% 97%;
+  --foreground: 216 11% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 216 11% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 216 11% 14%;
+  --primary: 211 92% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 26% 95%;
+  --secondary-foreground: 216 11% 14%;
+  --muted: 210 26% 95%;
+  --muted-foreground: 213 8% 40%;
+  --accent: 263 52% 52%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 356 71% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 137 66% 30%;
+  --success-foreground: 0 0% 100%;
+  --warning: 40 100% 30%;
+  --warning-foreground: 0 0% 100%;
+  --border: 210 18% 84%;
+  --input: 210 18% 84%;
+  --ring: 211 92% 45%;
+  --sidebar: 210 23% 94%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 216 28% 7%;
+  --foreground: 210 17% 93%;
+  --card: 215 23% 11%;
+  --card-foreground: 210 17% 93%;
+  --popover: 215 23% 11%;
+  --popover-foreground: 210 17% 93%;
+  --primary: 183 66% 54%;
+  --primary-foreground: 215 40% 6%;
+  --secondary: 214 18% 15%;
+  --secondary-foreground: 210 17% 93%;
+  --muted: 214 18% 15%;
+  --muted-foreground: 213 10% 64%;
+  --accent: 239 84% 74%;
+  --accent-foreground: 215 40% 6%;
+  --destructive: 3 92% 63%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 132 49% 49%;
+  --success-foreground: 0 0% 100%;
+  --warning: 40 69% 48%;
+  --warning-foreground: 216 28% 7%;
+  --border: 213 12% 21%;
+  --input: 213 12% 21%;
+  --ring: 183 66% 54%;
+  --sidebar: 210 100% 2%;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  code {
+    @apply rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+  /* Thin, themed scrollbars to keep the dense-dashboard feel. */
+  * { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+}

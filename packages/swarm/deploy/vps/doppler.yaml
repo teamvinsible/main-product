@@ -1,0 +1,10 @@
+# Doppler project mapping for Agent Swarm VPS.
+# Create matching project + config in https://dashboard.doppler.com
+# Production uses a Service Token (not `doppler login`).
+#
+# Install: copy to /opt/agent-swarm/doppler.yaml and set DOPPLER_TOKEN in
+# /etc/doppler/agent-swarm.env (see deploy/vps/README.md#doppler).
+
+setup:
+  - project: agent-swarm
+    config: prd

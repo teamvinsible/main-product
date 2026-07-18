@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.npm-cache/
+.docker-tmp/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+# rendered artifacts / local state
+.harness/
+*.tfstate
+*.tfstate.*
+.terraform/

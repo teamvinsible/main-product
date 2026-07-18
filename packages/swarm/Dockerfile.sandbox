@@ -1,0 +1,20 @@
+FROM node:22-bookworm
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates openssh-client \
+  && rm -rf /var/lib/apt/lists/*
+
+# Best-effort: Chromium runtime libraries so the QA/design agents can drive a real
+# browser via Playwright for end-to-end UI testing and reference screenshots.
+# Kept in its own layer with `|| true` so an unavailable package never fails the
+# build — agents degrade gracefully to HTTP/API checks when no browser is present.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+     libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+     libdrm2 libatspi2.0-0 libx11-6 libxcomposite1 libxdamage1 libxext6 \
+     libxfixes3 libxrandr2 libgbm1 libxcb1 libxkbcommon0 libpango-1.0-0 \
+     libcairo2 libasound2 libwayland-client0 fonts-liberation \
+  || true \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

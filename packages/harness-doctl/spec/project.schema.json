@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ansi2u.dev/harness-doctl/project.schema.json",
+  "title": "harness-doctl project spec",
+  "type": "object",
+  "required": ["project", "region", "services", "resources"],
+  "additionalProperties": false,
+  "properties": {
+    "project": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+    "region": { "type": "string" },
+    "tier": { "enum": ["micro", "standard", "performance"] },
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["build"],
+        "additionalProperties": false,
+        "properties": {
+          "build": { "type": "string" },
+          "routes": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\\s+/\\S*$" }
+          },
+          "needs": { "type": "array", "items": { "type": "string" } },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "db": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["engine"],
+            "additionalProperties": false,
+            "properties": {
+              "engine": { "type": "string" },
+              "rls": { "enum": ["required", "off"] },
+              "backups": {
+                "type": "object",
+                "required": ["to", "schedule"],
+                "additionalProperties": false,
+                "properties": {
+                  "to": { "const": "spaces" },
+                  "schedule": { "type": "string" },
+                  "pitr": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "bucket": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "public": { "type": "boolean" } }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "required": ["provider"],
+          "additionalProperties": false,
+          "properties": {
+            "provider": { "const": "gotrue" },
+            "providers": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ssh": { "enum": ["headscale-only", "public"] },
+        "firewall": { "enum": ["default-deny", "open"] },
+        "tls": { "enum": ["auto", "off"] }
+      }
+    }
+  }
+}

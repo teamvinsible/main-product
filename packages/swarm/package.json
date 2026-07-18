@@ -1,0 +1,57 @@
+{
+  "name": "@teamvinsible/swarm",
+  "version": "1.0.0",
+  "description": "Teamvinsible agent swarm — orchestrator, domain agents, and control API",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "swarm": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ansi2u/agent-swarm.git"
+  },
+  "keywords": [
+    "agent",
+    "swarm",
+    "cli",
+    "automation",
+    "app-development"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc && npm run web:build",
+    "build:server": "tsc",
+    "web:install": "npm --prefix web install",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "serve": "tsx src/index.ts serve",
+    "dashboard": "tsx src/index.ts dashboard",
+    "scrub-logs": "tsx src/index.ts scrub-logs",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "node dist/db/migrate.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.162",
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@ansi2u/harness-doctl": "file:../harness-doctl",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.45.2",
+    "inquirer": "^12.3.0",
+    "openai": "^6.42.0",
+    "ora": "^8.1.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

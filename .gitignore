@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.swarm/
+.env
+.env.local
+*.local
+
+# Build / cache
+.wrangler/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Desktop.ini

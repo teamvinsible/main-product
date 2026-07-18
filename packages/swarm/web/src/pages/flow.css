@@ -1,0 +1,47 @@
+/* Scoped styling for the Flow timeline SVG. Presentation attributes on SVG
+   elements are awkward to express as Tailwind utilities, so the graph internals
+   keep dedicated classes — mapped onto the app's shadcn design tokens. */
+.band { fill: transparent; }
+.flow-canvas g:nth-child(even) .band { fill: hsl(var(--secondary) / 0.35); }
+.band-label { fill: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+.band-line { stroke: hsl(var(--border)); stroke-width: 1; opacity: 0.65; }
+.flow-grid { stroke: hsl(var(--border)); stroke-dasharray: 2 4; opacity: 0.3; }
+
+.edge { fill: none; stroke: hsl(var(--border)); stroke-width: 2; opacity: 0.32; }
+.edge.reverse { stroke: #f97316; opacity: 0.42; }
+.edge-flow {
+  fill: none;
+  stroke: hsl(var(--primary));
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 18 180;
+  opacity: 0.75;
+  filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.55));
+  animation: flowDash 2.4s linear infinite;
+}
+.edge-flow.reverse {
+  stroke: #f97316;
+  filter: drop-shadow(0 0 6px rgb(249 115 22 / 0.55));
+}
+@keyframes flowDash {
+  to { stroke-dashoffset: -198; }
+}
+
+.legend-line {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top: 2px solid hsl(var(--primary));
+  border-radius: 999px;
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.45));
+}
+.legend-line.reverse {
+  border-color: #f97316;
+  filter: drop-shadow(0 0 4px rgb(249 115 22 / 0.45));
+}
+
+.node-rect { transition: fill 0.15s; }
+.node.pending .node-rect { stroke-dasharray: 3 3; opacity: 0.5; }
+.node-rect.failed { stroke-width: 2; }
+.node-label { fill: hsl(var(--background)); font-size: 12px; font-weight: 700; pointer-events: none; }
+.node.pending .node-label { fill: hsl(var(--muted-foreground)); }

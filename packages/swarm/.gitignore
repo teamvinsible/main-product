@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+web/dist/
+
+# Local environment and tool state
+.env
+.claude/
+
+# Agent Swarm runtime data
+.swarm/*
+!.swarm/.gitkeep
+workspace/
+
+# Per-project support docs (research/PRD/design/qa/... live here, local-only)
+_artifacts/
+
+# Logs and temporary run artifacts
+*.log
+.serve.*.log
+.tmp-*
+learnings-*.json

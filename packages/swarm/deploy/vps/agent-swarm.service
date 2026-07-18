@@ -1,0 +1,33 @@
+[Unit]
+Description=Agent Swarm control plane (dark factory)
+Documentation=https://github.com/ansi2u/agent-swarm
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+User=swarm
+Group=swarm
+WorkingDirectory=/opt/agent-swarm
+Environment=NODE_ENV=production
+# Bind loopback only — Caddy terminates TLS on :443 and proxies here.
+Environment=SWARM_BIND=127.0.0.1
+EnvironmentFile=/opt/agent-swarm/.env
+ExecStart=/usr/bin/node dist/index.js serve --port 3456
+Restart=always
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/agent-swarm /opt/agent-swarm/.swarm
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

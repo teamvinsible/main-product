@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "workspace_dir" text DEFAULT '' NOT NULL;

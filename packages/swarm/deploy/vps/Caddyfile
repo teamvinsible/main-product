@@ -1,0 +1,32 @@
+# Replace swarm.example.com with your domain. DNS A-record → VPS IP.
+# Caddy obtains TLS automatically via Let's Encrypt.
+
+{
+	# Optional: restrict admin API to localhost
+	admin localhost:2019
+	# Uncomment to use staging LE certs while testing:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+swarm.example.com {
+	# Optional IP allowlist (office / home / tailnet egress). Uncomment and edit:
+	# @blocked not remote_ip 203.0.113.10 198.51.100.0/24
+	# respond @blocked "Forbidden" 403
+
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:3456 {
+		# Forward client IP for logging
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

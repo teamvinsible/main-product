@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../spec/project.schema.json
+# Example: a small SaaS backend. `harness gates examples/project.spec.yaml`.
+project: acme-saas
+region: blr1
+tier: standard
+
+services:
+  api:
+    build: ./api            # any language; the harness builds + runs the container
+    routes:
+      - GET  /users
+      - POST /users
+    needs: [db.main, bucket.uploads, auth]
+
+resources:
+  db:
+    main:
+      engine: postgres@16
+      rls: required         # linter blocks tables without an RLS policy
+      backups:
+        to: spaces
+        schedule: "0 */6 * * *"
+        pitr: true
+  bucket:
+    uploads:
+      public: false
+  auth:
+    provider: gotrue
+    providers: [email, google]
+
+security:
+  ssh: headscale-only       # no public SSH
+  firewall: default-deny    # only 443 public; control plane via tailnet
+  tls: auto                 # Caddy + Let's Encrypt

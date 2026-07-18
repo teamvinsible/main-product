@@ -1,0 +1,33 @@
+[Unit]
+Description=Agent Swarm control plane (Doppler secrets)
+Documentation=https://github.com/ansi2u/agent-swarm
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+User=swarm
+Group=swarm
+WorkingDirectory=/opt/agent-swarm
+Environment=NODE_ENV=production
+Environment=SWARM_BIND=127.0.0.1
+# Only the Doppler Service Token lives on disk — all other secrets are injected at runtime.
+EnvironmentFile=/etc/doppler/agent-swarm.env
+# Secrets injected by Doppler CLI: https://docs.doppler.com/docs/install-cli
+ExecStart=/usr/bin/doppler run -- /usr/bin/node dist/index.js serve --port 3456
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/agent-swarm /opt/agent-swarm/.swarm
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

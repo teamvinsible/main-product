@@ -1,0 +1,48 @@
+{
+  "name": "@ansi2u/harness-doctl",
+  "version": "0.0.1",
+  "description": "Infrastructure-from-Spec: turn a project.spec.yaml into a repeatable, hardened, self-hosted DigitalOcean backend.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "harness": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "spec",
+    "modules",
+    "services",
+    "policies"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "npm run typecheck && npm test"
+  },
+  "keywords": [
+    "digitalocean",
+    "infrastructure",
+    "backend",
+    "iac",
+    "opentofu",
+    "harness"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

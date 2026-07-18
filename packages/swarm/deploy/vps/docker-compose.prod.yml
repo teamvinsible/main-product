@@ -1,0 +1,10 @@
+# Production Postgres — binds to loopback ONLY (not exposed to the internet).
+# Usage: docker compose -f docker-compose.yml -f deploy/vps/docker-compose.prod.yml up -d
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: swarm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swarm}
+      POSTGRES_DB: swarm

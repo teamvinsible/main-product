@@ -1,0 +1,1 @@
+ALTER TABLE "questions" ADD COLUMN "env_key" text DEFAULT '' NOT NULL;
