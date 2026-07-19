@@ -218,11 +218,12 @@ export function OrchestratorHub({
       .filter((f) => positions[f.from] && positions[f.to])
       .sort((a, b) => b.at - a.at);
 
+    // Compact hub stays sparse; full canvas must show every exchange from the rail.
     const quiet = flows
       .filter((f) => !f.active)
       .filter((f) => positions[f.from] && positions[f.to])
       .sort((a, b) => b.at - a.at)
-      .slice(0, canvas ? 4 : 2);
+      .slice(0, canvas ? flows.length : 2);
 
     const lines = active.slice(0, canvas ? 3 : 2).map((f) => {
       const art = f.artifacts[0] ? shortArtifact(f.artifacts[0], canvas) : "signal";
@@ -309,14 +310,34 @@ export function OrchestratorHub({
     [],
   );
 
+  // Canvas draws the full exchange set; compact keeps a short live subset.
   const showFlows = focusFlowId
-    ? activeFlows
-        .filter((f) => f.id === focusFlowId)
-        .concat(dataFlows.filter((f) => f.id === focusFlowId && !activeFlows.some((a) => a.id === f.id)))
-    : activeFlows.slice(0, canvas ? 5 : 4);
+    ? (() => {
+        const focused =
+          activeFlows.find((f) => f.id === focusFlowId) ||
+          quietFlows.find((f) => f.id === focusFlowId) ||
+          dataFlows.find((f) => f.id === focusFlowId);
+        if (canvas) {
+          // Keep every live edge; promote the focused quiet edge so it animates.
+          const rest = activeFlows.filter((f) => f.id !== focusFlowId);
+          return focused && !activeFlows.some((f) => f.id === focusFlowId)
+            ? [focused, ...rest]
+            : focused
+              ? [focused, ...rest]
+              : activeFlows;
+        }
+        return focused ? [focused] : [];
+      })()
+    : canvas
+      ? activeFlows
+      : activeFlows.slice(0, 4);
 
-  const showQuiet = focusFlowId ? [] : quietFlows.slice(0, canvas ? 4 : 3);
-  const empty = visibleAgents.length === 0 && showFlows.length === 0;
+  const showQuiet = canvas
+    ? quietFlows.filter((f) => !showFlows.some((a) => a.id === f.id))
+    : focusFlowId
+      ? []
+      : quietFlows.slice(0, 3);
+  const empty = visibleAgents.length === 0 && showFlows.length === 0 && showQuiet.length === 0;
   const ready = Object.keys(geoms).length > 0;
 
   return (
@@ -372,6 +393,7 @@ export function OrchestratorHub({
                 showQuiet.map((f, i) => {
                   const route = flowPathPx(geoms, f.from, f.to, i + showFlows.length);
                   if (!route) return null;
+                  const focused = !focusFlowId || focusFlowId === f.id;
                   return (
                     <path
                       key={`quiet-${f.id}`}
@@ -380,7 +402,7 @@ export function OrchestratorHub({
                       stroke="var(--hub-quiet)"
                       strokeWidth={1.5}
                       strokeDasharray="4 5"
-                      opacity={0.35}
+                      opacity={focused ? (focusFlowId ? 0.85 : 0.4) : 0.12}
                     />
                   );
                 })}
@@ -397,11 +419,13 @@ export function OrchestratorHub({
                     : isUp
                       ? `url(#${uid}-flow-arrow-green)`
                       : `url(#${uid}-flow-arrow)`;
-                  // Compact card: no on-path labels (chips live outside the diagram)
+                  const isFocus = focusFlowId === f.id;
                   const label =
-                    canvas && i === 0 && f.artifacts[0] ? shortArtifact(f.artifacts[0], true) : "";
+                    canvas && (isFocus || i === 0) && f.artifacts[0]
+                      ? shortArtifact(f.artifacts[0], true)
+                      : "";
                   const dur = 2 + (i % 2) * 0.4;
-                  const focused = !focusFlowId || focusFlowId === f.id;
+                  const focused = !focusFlowId || isFocus;
                   const labelW = Math.min(label.length * 7.2 + 12, 160);
 
                   return (
@@ -410,7 +434,7 @@ export function OrchestratorHub({
                         d={route.d}
                         fill="none"
                         stroke={stroke}
-                        strokeWidth={2.25}
+                        strokeWidth={isFocus ? 2.75 : 2.25}
                         strokeDasharray="8 5"
                         markerEnd={marker}
                         opacity={0.95}
