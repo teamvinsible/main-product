@@ -1,5 +1,5 @@
 import type { PlatformProject } from "@teamvinsible/shared";
-import { isAuthResponse, requireAuth, serviceClient, type Authed } from "./auth";
+import { authConfigured, isAuthResponse, requireAuth, serviceClient, type Authed } from "./auth";
 import { createProject, getProfile, updateProjectPreview, memoryStore } from "./db";
 import { corsHeaders, isDevelopment, json, missingCoreBindings, useLegacySwarm, type Env } from "./env";
 import { d1ListNotifications, d1MarkNotificationsRead } from "./d1";
@@ -319,7 +319,7 @@ export default {
 
     if (pathname === "/api/health") {
       const missing = missingCoreBindings(env);
-      const authReady = Boolean(env.SUPABASE_URL && env.SUPABASE_JWT_SECRET)
+      const authReady = authConfigured(env)
         || (isDevelopment(env) && env.DEV_AUTH_BYPASS === "true");
       const ready = authReady && (isDevelopment(env) || missing.length === 0);
       // Binding-by-binding detail is a config disclosure; keep it dev-only.

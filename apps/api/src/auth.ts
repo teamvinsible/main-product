@@ -1,7 +1,20 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { jwtVerify } from "jose";
+import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import type { AuthUser } from "@teamvinsible/shared";
 import { isDevelopment, type Env } from "./env";
+
+// Supabase projects on "JWT signing keys" issue ES256 tokens verified against
+// the project JWKS; legacy projects use the HS256 shared secret. Cache the
+// JWKS per isolate — jose refetches on unknown kid automatically.
+let jwksCache: { url: string; jwks: ReturnType<typeof createRemoteJWKSet> } | null = null;
+
+function supabaseJwks(supabaseUrl: string) {
+  const url = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/.well-known/jwks.json`;
+  if (!jwksCache || jwksCache.url !== url) {
+    jwksCache = { url, jwks: createRemoteJWKSet(new URL(url)) };
+  }
+  return jwksCache.jwks;
+}
 
 export type Authed = {
   user: AuthUser;
@@ -16,7 +29,9 @@ const DEV_USER: AuthUser = {
 };
 
 export function authConfigured(env: Env): boolean {
-  return Boolean(env.SUPABASE_URL && env.SUPABASE_JWT_SECRET);
+  // SUPABASE_URL alone suffices for asymmetric (JWKS) verification; the JWT
+  // secret is only needed for legacy HS256 projects.
+  return Boolean(env.SUPABASE_URL || env.SUPABASE_JWT_SECRET);
 }
 
 export function serviceClient(env: Env): SupabaseClient | null {
@@ -47,7 +62,7 @@ export async function requireAuth(request: Request, env: Env): Promise<Authed | 
   }
 
   const token = match[1]!.trim();
-  if (!env.SUPABASE_JWT_SECRET) {
+  if (!authConfigured(env)) {
     if (allowDevBypass) {
       return { user: DEV_USER, accessToken: token };
     }
@@ -58,17 +73,29 @@ export async function requireAuth(request: Request, env: Env): Promise<Authed | 
   }
 
   try {
-    const secret = new TextEncoder().encode(env.SUPABASE_JWT_SECRET);
     // Supabase user access tokens always carry aud "authenticated" and
     // iss "{project}/auth/v1"; enforcing both rejects service-role and
-    // foreign-project tokens signed with a leaked/shared secret.
-    const { payload } = await jwtVerify(token, secret, {
-      algorithms: ["HS256"],
+    // foreign-project tokens.
+    const verifyOptions = {
       audience: "authenticated",
       ...(env.SUPABASE_URL
         ? { issuer: `${env.SUPABASE_URL.replace(/\/$/, "")}/auth/v1` }
         : {}),
-    });
+    };
+
+    const alg = decodeProtectedHeader(token).alg;
+    let payload;
+    if (alg === "HS256") {
+      if (!env.SUPABASE_JWT_SECRET) throw new Error("HS256 token but no JWT secret configured");
+      const secret = new TextEncoder().encode(env.SUPABASE_JWT_SECRET);
+      ({ payload } = await jwtVerify(token, secret, { algorithms: ["HS256"], ...verifyOptions }));
+    } else {
+      if (!env.SUPABASE_URL) throw new Error("Asymmetric token but no SUPABASE_URL configured");
+      ({ payload } = await jwtVerify(token, supabaseJwks(env.SUPABASE_URL), {
+        algorithms: ["ES256", "RS256"],
+        ...verifyOptions,
+      }));
+    }
 
     const sub = typeof payload.sub === "string" ? payload.sub : null;
     if (!sub) {
