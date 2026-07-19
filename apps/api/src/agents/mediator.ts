@@ -218,7 +218,19 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       ...this.state.activity,
     ].slice(0, 40);
 
-    const workstreams = this.state.workstreams.map((ws, i) => {
+    // Rehydrate workstreams if bootstrap state was lost — specs alone can't drive the hub.
+    const baseWorkstreams =
+      this.state.workstreams.length > 0
+        ? this.state.workstreams
+        : PHASES.map((p, i) => ({
+            id: `ws-${p.phase}`,
+            label: p.label,
+            status: "queued" as const,
+            agentRole: p.agentId,
+            phase: p.phase,
+          }));
+
+    const workstreams = baseWorkstreams.map((ws, i) => {
       if (i < nextIndex || (input.done && i <= input.phaseIndex)) return { ...ws, status: "aligned" as const };
       if (i === nextIndex && !input.done) return { ...ws, status: "in-progress" as const };
       return ws;
@@ -381,22 +393,39 @@ function buildDataFlows(state: MediatorState): DataFlowEdge[] {
   const flows: DataFlowEdge[] = [];
   const baseAt = Date.now();
   const runComplete = state.status === "completed";
+  // During consolidate (mediator lead) no domain phase is in-flight — keep the
+  // most recent completed handoffs "live" so the hub doesn't look empty.
+  const latestDomainIdx = (() => {
+    for (let i = PHASES.length - 1; i >= 0; i--) {
+      if (PHASES[i]!.agentId === "mediator") continue;
+      const ws = state.workstreams[i];
+      const hasSpec = state.specs.some(
+        (s) => s.id === `spec-${PHASES[i]!.phase}` || s.owner === PHASES[i]!.agentId,
+      );
+      if (ws?.status === "aligned" || ws?.status === "in-progress" || ws?.status === "drafting" || hasSpec) {
+        return i;
+      }
+    }
+    return -1;
+  })();
 
   for (let i = 0; i < PHASES.length; i++) {
     const phase = PHASES[i]!;
-    const ws = state.workstreams[i];
-    if (!ws) continue;
-
-    const aligned = ws.status === "aligned";
-    const inFlight = ws.status === "in-progress" || ws.status === "drafting";
-    if (!aligned && !inFlight) continue;
     if (phase.agentId === "mediator") continue;
 
+    const ws = state.workstreams[i];
     const spec = state.specs.find((s) => s.id === `spec-${phase.phase}` || s.owner === phase.agentId);
+    // Specs are the source of truth for completed work when workstreams are missing.
+    const aligned = ws?.status === "aligned" || Boolean(spec && ws?.status !== "in-progress" && ws?.status !== "drafting");
+    const inFlight = ws?.status === "in-progress" || ws?.status === "drafting";
+    const fromSpecOnly = !ws && Boolean(spec);
+    if (!aligned && !inFlight && !fromSpecOnly) continue;
+
     const artifact = spec?.path?.split("/").pop() || `${phase.phase}.md`;
     const at = baseAt - (PHASES.length - i) * 12_000;
-    // Keep a couple of exchanges "live" after completion so packet motion remains visible.
-    const stillActive = inFlight || (runComplete && i >= PHASES.length - 3);
+    // Keep the latest 2 domain phases animated while the run is still going or done.
+    const recent = latestDomainIdx >= 0 && i >= latestDomainIdx - 1;
+    const stillActive = inFlight || recent || (runComplete && i >= PHASES.length - 3);
 
     flows.push({
       id: `flow-${phase.phase}-dispatch`,
@@ -404,21 +433,19 @@ function buildDataFlows(state: MediatorState): DataFlowEdge[] {
       to: phase.agentId,
       artifacts: ["brief.md"],
       at: at - 4_000,
-      active: stillActive,
+      active: stillActive && inFlight,
       kind: "from-mediator",
     });
 
-    if (aligned || inFlight) {
-      flows.push({
-        id: `flow-${phase.phase}-report`,
-        from: phase.agentId,
-        to: "mediator",
-        artifacts: [artifact],
-        at,
-        active: stillActive,
-        kind: "to-mediator",
-      });
-    }
+    flows.push({
+      id: `flow-${phase.phase}-report`,
+      from: phase.agentId,
+      to: "mediator",
+      artifacts: [artifact],
+      at,
+      active: stillActive,
+      kind: "to-mediator",
+    });
   }
 
   // Sequential handoffs between consecutive domain agents (after both have run).
@@ -426,20 +453,27 @@ function buildDataFlows(state: MediatorState): DataFlowEdge[] {
     const prev = PHASES[i - 1]!;
     const curr = PHASES[i]!;
     if (prev.agentId === "mediator" || curr.agentId === "mediator") continue;
+
     const prevWs = state.workstreams[i - 1];
     const currWs = state.workstreams[i];
-    if (!prevWs || prevWs.status !== "aligned") continue;
-    if (!currWs || (currWs.status !== "aligned" && currWs.status !== "in-progress")) continue;
-
     const prevSpec = state.specs.find((s) => s.id === `spec-${prev.phase}`);
+    const currSpec = state.specs.find((s) => s.id === `spec-${curr.phase}`);
+    const prevDone = prevWs?.status === "aligned" || Boolean(prevSpec);
+    const currLive =
+      currWs?.status === "aligned" ||
+      currWs?.status === "in-progress" ||
+      Boolean(currSpec);
+    if (!prevDone || !currLive) continue;
+
     const artifact = prevSpec?.path?.split("/").pop() || `${prev.phase}.md`;
+    const recent = latestDomainIdx >= 0 && i >= latestDomainIdx - 1;
     flows.push({
       id: `flow-${prev.phase}-to-${curr.phase}`,
       from: prev.agentId,
       to: curr.agentId,
       artifacts: [artifact],
       at: baseAt - (PHASES.length - i) * 12_000 + 2_000,
-      active: currWs.status === "in-progress" || (runComplete && i >= PHASES.length - 2),
+      active: currWs?.status === "in-progress" || recent || (runComplete && i >= PHASES.length - 2),
       kind: "handoff",
     });
   }
@@ -454,9 +488,15 @@ function agentsForSpine(state: MediatorState): DomainAgentNode[] {
       .filter((ws) => ws.status === "aligned" || ws.status === "in-progress" || ws.status === "drafting")
       .map((ws) => ws.agentRole),
   );
+  for (const spec of state.specs) {
+    if (spec.owner && spec.owner !== "mediator") touched.add(spec.owner);
+  }
 
-  return state.agents.map((a) => {
-    if (a.id === "mediator") return a;
+  const roster = state.agents.length > 0 ? state.agents : baseAgents();
+  return roster.map((a) => {
+    if (a.id === "mediator") {
+      return state.status === "completed" ? { ...a, signal: "done" as const } : { ...a, signal: "active" as const };
+    }
     if (a.signal !== "standby") return a;
     if (touched.has(a.id) || state.status === "completed") {
       return { ...a, signal: "done" as const };

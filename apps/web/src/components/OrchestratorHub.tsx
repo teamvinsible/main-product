@@ -213,18 +213,24 @@ export function OrchestratorHub({
       canvas,
     );
 
+    const endpointOk = (f: DataFlowEdge) =>
+      Boolean(positions[f.from] && positions[f.to]);
+
     const active = flows
       .filter((f) => f.active)
-      .filter((f) => positions[f.from] && positions[f.to])
+      .filter(endpointOk)
       .sort((a, b) => b.at - a.at);
 
     const quiet = flows
       .filter((f) => !f.active)
-      .filter((f) => positions[f.from] && positions[f.to])
+      .filter(endpointOk)
       .sort((a, b) => b.at - a.at)
-      .slice(0, canvas ? 4 : 2);
+      .slice(0, canvas ? 6 : 4);
 
-    const lines = active.slice(0, canvas ? 3 : 2).map((f) => {
+    // Prefer live lines; fall back to recent completed handoffs so the ticker
+    // never goes blank while artifacts already exist.
+    const tickerSource = (active.length > 0 ? active : quiet).slice(0, canvas ? 3 : 2);
+    const lines = tickerSource.map((f) => {
       const art = f.artifacts[0] ? shortArtifact(f.artifacts[0], canvas) : "signal";
       const from = LABELS[f.from] || f.from;
       const to = LABELS[f.to] || f.to;
@@ -315,8 +321,17 @@ export function OrchestratorHub({
         .concat(dataFlows.filter((f) => f.id === focusFlowId && !activeFlows.some((a) => a.id === f.id)))
     : activeFlows.slice(0, canvas ? 5 : 4);
 
-  const showQuiet = focusFlowId ? [] : quietFlows.slice(0, canvas ? 4 : 3);
-  const empty = visibleAgents.length === 0 && showFlows.length === 0;
+  // When nothing is marked live (e.g. consolidate), promote recent quiet edges so
+  // the hub still shows packet motion instead of an empty ring.
+  const promotedQuiet =
+    showFlows.length === 0 && !focusFlowId
+      ? quietFlows.slice(0, canvas ? 3 : 2)
+      : [];
+  const drawnActive = showFlows.length > 0 ? showFlows : promotedQuiet;
+  const showQuiet = focusFlowId
+    ? []
+    : quietFlows.filter((f) => !drawnActive.some((a) => a.id === f.id)).slice(0, canvas ? 4 : 3);
+  const empty = visibleAgents.length === 0 && drawnActive.length === 0 && showQuiet.length === 0;
   const ready = Object.keys(geoms).length > 0;
 
   return (
@@ -370,7 +385,7 @@ export function OrchestratorHub({
 
               {ready &&
                 showQuiet.map((f, i) => {
-                  const route = flowPathPx(geoms, f.from, f.to, i + showFlows.length);
+                  const route = flowPathPx(geoms, f.from, f.to, i + drawnActive.length);
                   if (!route) return null;
                   return (
                     <path
@@ -386,7 +401,7 @@ export function OrchestratorHub({
                 })}
 
               {ready &&
-                showFlows.map((f, i) => {
+                drawnActive.map((f, i) => {
                   const route = flowPathPx(geoms, f.from, f.to, i);
                   if (!route) return null;
                   const isRev = f.kind === "revision";
@@ -527,13 +542,15 @@ export function OrchestratorHub({
               </div>
               <div className="name">Mediator</div>
               <div className="detail">
-                {activeFlows.length
-                  ? `${activeFlows.length} live exchange${activeFlows.length === 1 ? "" : "s"}`
+                {drawnActive.length
+                  ? `${drawnActive.length} live exchange${drawnActive.length === 1 ? "" : "s"}`
                   : visibleAgents.some((a) => a.signal === "active")
                     ? "Coordinating live"
                     : visibleAgents.some((a) => a.signal === "revision")
                       ? "Resolving doubts"
-                      : "Aligning specs"}
+                      : visibleAgents.length
+                        ? "Aligning specs"
+                        : "Waiting for exchanges"}
               </div>
             </div>
 
@@ -590,8 +607,8 @@ export function OrchestratorHub({
             <div>
               <div className="name">Mediator</div>
               <div className="detail">
-                {activeFlows.length
-                  ? `${activeFlows.length} live handoff${activeFlows.length === 1 ? "" : "s"}`
+                {drawnActive.length
+                  ? `${drawnActive.length} live handoff${drawnActive.length === 1 ? "" : "s"}`
                   : visibleAgents.length
                     ? "Coordinating"
                     : "Waiting for exchanges"}
@@ -609,9 +626,9 @@ export function OrchestratorHub({
             </div>
           )}
 
-          {activeFlows.length > 0 && (
+          {drawnActive.length > 0 && (
             <div className="revision-banner exchange-mobile" style={{ gridColumn: "1 / -1" }}>
-              {activeFlows.slice(0, 4).map((f) => (
+              {drawnActive.slice(0, 4).map((f) => (
                 <span key={f.id} className="sub">
                   {LABELS[f.from] || f.from} → {LABELS[f.to] || f.to}
                   {f.artifacts[0] ? `: ${shortArtifact(f.artifacts[0])}` : ""}
