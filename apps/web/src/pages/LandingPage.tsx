@@ -371,7 +371,7 @@ export function LandingPage() {
         <small>
           © {new Date().getFullYear()} Teamvinsible
           <span className="footer-credit">
-            Made with ❤️ &amp; AI by Froundrylabs in{" "}
+            Made with ❤️ &amp; AI by Foundrylabs in{" "}
             <img
               className="footer-flag"
               src="/flag-india.svg"

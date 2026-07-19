@@ -7,8 +7,10 @@ import {
   d1CountActiveRuns,
   d1CreateNotification,
   d1GetProject,
+  d1LatestRun,
   d1ListProjects,
   d1UpdateProject,
+  d1UpdateRun,
   hasD1,
   type CfProjectRow,
 } from "../d1";
@@ -16,7 +18,7 @@ import { isDevelopment, type Env } from "../env";
 import { memoryStore } from "../db";
 import { swarmNameForUser } from "../swarm";
 import { getMediator, mediatorToSpine } from "../agents/mediator";
-import { activityBootstrapAccepted, activityFirstName } from "./activity-copy";
+import { activityBootstrapAccepted, activityFirstName, activityRestarted } from "./activity-copy";
 
 function slugify(input: string): string {
   return (
@@ -267,6 +269,150 @@ export async function cfStartRun(
   }
 
   return { ok: true, name: swarmName, swarmName, projectId, runId };
+}
+
+/** Stop the in-flight crew (if any) and start a fresh run on the same project/brief. */
+export async function cfRestartRun(
+  env: Env,
+  auth: Authed,
+  projectKey: string,
+): Promise<{ ok: boolean; name: string; swarmName: string; projectId: string; runId: string }> {
+  const project = await cfGetProject(env, auth.user.id, projectKey);
+  if (!project) throw new Error("Project not found");
+
+  const name = activityFirstName(auth.user.displayName);
+  let previousRunId: string | null = null;
+
+  if (hasD1(env)) {
+    const latest = await d1LatestRun(env, project.id);
+    previousRunId = latest?.id || null;
+  }
+
+  if (env.Mediator) {
+    try {
+      const mediator = await getMediator(env, project.id);
+      const snap = await mediator.getSnapshot();
+      if (snap.runId) previousRunId = previousRunId || snap.runId;
+    } catch (err) {
+      console.warn(JSON.stringify({ event: "restart.mediator_snapshot_failed", error: String(err) }));
+    }
+  }
+
+  if (env.CREW_WORKFLOW && previousRunId) {
+    try {
+      const instance = await env.CREW_WORKFLOW.get(previousRunId);
+      await instance.terminate();
+    } catch (err) {
+      // Already complete / terminated / missing — continue with a fresh run.
+      console.warn(
+        JSON.stringify({
+          event: "restart.workflow_terminate_skipped",
+          runId: previousRunId,
+          error: String(err),
+        }),
+      );
+    }
+  }
+
+  if (hasD1(env) && previousRunId) {
+    await d1UpdateRun(env, previousRunId, {
+      status: "cancelled",
+      current_phase: "cancelled",
+    });
+  }
+
+  const runId = crypto.randomUUID();
+
+  if (hasD1(env)) {
+    await d1CreateRun(env, {
+      id: runId,
+      project_id: project.id,
+      user_id: auth.user.id,
+      idea: project.brief,
+      status: "running",
+      stage: "drafting",
+      current_phase: "research",
+    });
+    await d1UpdateProject(env, project.id, { status: "running" });
+    await d1AddActivity(env, {
+      id: crypto.randomUUID(),
+      project_id: project.id,
+      run_id: runId,
+      message: activityRestarted(name, project.title),
+      kind: "gate",
+      agent: "Nexus",
+      phase: "restart",
+    });
+    await d1CreateNotification(env, {
+      userId: auth.user.id,
+      projectId: project.id,
+      runId,
+      kind: "run.restarted",
+      title: "Run restarted",
+      message: `${project.title} was stopped and started again from the beginning.`,
+      metadata: { swarmName: project.swarmName },
+    });
+  } else if (isDevelopment(env)) {
+    memoryStore.updatePreview(project.id, { status: "running" });
+  } else {
+    throw new Error("D1 binding is unavailable");
+  }
+
+  if (env.Mediator) {
+    const mediator = await getMediator(env, project.id);
+    await mediator.bootstrap({
+      projectId: project.id,
+      swarmName: project.swarmName,
+      userId: auth.user.id,
+      displayName: auth.user.displayName || "",
+      title: project.title,
+      brief: project.brief,
+      runId,
+      restarted: true,
+    });
+  }
+
+  if (env.CREW_WORKFLOW) {
+    try {
+      await env.CREW_WORKFLOW.create({
+        id: runId,
+        params: {
+          projectId: project.id,
+          runId,
+          userId: auth.user.id,
+          swarmName: project.swarmName,
+          title: project.title,
+          brief: project.brief,
+        },
+      });
+    } catch (err) {
+      console.error(JSON.stringify({ event: "restart.workflow_create_failed", runId, error: String(err) }));
+      if (env.Mediator) {
+        const mediator = await getMediator(env, project.id);
+        await mediator.schedulePhases();
+      }
+    }
+  }
+
+  if (env.RUN_QUEUE) {
+    await env.RUN_QUEUE.send({
+      type: "run.start",
+      projectId: project.id,
+      runId,
+      userId: auth.user.id,
+      swarmName: project.swarmName,
+      idea: project.brief,
+      title: project.title,
+    });
+  }
+
+  return {
+    ok: true,
+    name: project.swarmName,
+    swarmName: project.swarmName,
+    projectId: project.id,
+    runId,
+  };
 }
 
 export async function cfLoadSpine(

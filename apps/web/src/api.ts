@@ -368,6 +368,25 @@ export function startRun(body: Record<string, unknown>) {
   });
 }
 
+export function restartRun(project: string) {
+  if (isMockMode()) {
+    return Promise.resolve({
+      ok: true,
+      name: project,
+      swarmName: project,
+      projectId: project,
+      runId: "mock-restart-run",
+    } satisfies RunStartResponse & { runId: string });
+  }
+  return req<RunStartResponse & { runId: string }>("/api/run/restart", {
+    method: "POST",
+    body: JSON.stringify({ project }),
+  }).then((data) => {
+    invalidateSpineCache(project);
+    return data;
+  });
+}
+
 export function fetchHealth() {
   if (isMockMode()) {
     return Promise.resolve({ ok: true, swarm: false, platformHost: "mock", auth: false, sandbox: false });

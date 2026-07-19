@@ -85,6 +85,7 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
               path: result.path,
               filesWritten: result.filesWritten,
               done,
+              runId: params.runId,
             });
           }
 

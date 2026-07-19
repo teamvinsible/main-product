@@ -10,6 +10,7 @@ import {
   cfLoadSpine,
   cfOpenSpineStream,
   cfReadArtifact,
+  cfRestartRun,
   cfSetPreview,
   cfStartRun,
 } from "./orchestrator/cf";
@@ -269,6 +270,19 @@ async function handleAuthed(
         name: suggested,
         type: stringField(payload, "type", { maxLength: 40 }) || undefined,
       });
+      return json(env, request, result);
+    } catch (err) {
+      return json(env, request, { ok: false, error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  }
+
+  if (pathname === "/api/run/restart" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 16 * 1024);
+    const key = stringField(body, ["projectId", "project"], { required: true, maxLength: 100 });
+    if (!key) return json(env, request, { ok: false, error: "project required" }, 400);
+    try {
+      const result = await cfRestartRun(env, auth, key);
       return json(env, request, result);
     } catch (err) {
       return json(env, request, { ok: false, error: err instanceof Error ? err.message : String(err) }, 400);
