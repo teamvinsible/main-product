@@ -6,34 +6,34 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const distDir = path.join(appRoot, "dist");
 const SITE_ORIGIN = "https://teamvinsible.com";
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SEO validation failed: ${message}`);
 }
 
-function attribute(tag, name) {
+function attribute(tag: string, name: string) {
   return tag.match(new RegExp(`${name}=["']([^"']+)["']`, "i"))?.[1];
 }
 
-function meta(html, attributeName, key) {
+function meta(html: string, attributeName: string, key: string) {
   const tags = html.match(/<meta\s+[^>]*>/gi) ?? [];
   const tag = tags.find((candidate) => attribute(candidate, attributeName) === key);
   return tag ? attribute(tag, "content") : undefined;
 }
 
-function canonical(html) {
+function canonical(html: string) {
   const tags = html.match(/<link\s+[^>]*>/gi) ?? [];
   const tag = tags.find((candidate) => attribute(candidate, "rel") === "canonical");
   return tag ? attribute(tag, "href") : undefined;
 }
 
-function jsonLd(html) {
+function jsonLd(html: string): Record<string, unknown> | undefined {
   const match = html.match(
     /<script\s+[^>]*id=["']seo-json-ld["'][^>]*>([\s\S]*?)<\/script>/i,
   );
-  return match ? JSON.parse(match[1]) : undefined;
+  return match?.[1] ? (JSON.parse(match[1]) as Record<string, unknown>) : undefined;
 }
 
-async function htmlFile(route) {
+async function htmlFile(route: string) {
   return readFile(path.join(distDir, `${route}.html`), "utf8");
 }
 
@@ -70,13 +70,15 @@ assert(notFound.includes("Page not found"), "404 must contain a meaningful error
 for (const [file, width, height] of [
   ["social-card.png", 1200, 630],
   ["logo-512.png", 512, 512],
-]) {
+] as const) {
   const png = await readFile(path.join(distDir, file));
   assert(png.subarray(1, 4).toString("ascii") === "PNG", `${file} must be a PNG`);
   assert(png.readUInt32BE(16) === width && png.readUInt32BE(20) === height, `${file} must be ${width}x${height}`);
 }
 
-const manifest = JSON.parse(await readFile(path.join(distDir, "site.webmanifest"), "utf8"));
+const manifest = JSON.parse(await readFile(path.join(distDir, "site.webmanifest"), "utf8")) as {
+  icons?: Array<{ src?: string }>;
+};
 assert(manifest.icons?.some((icon) => icon.src === "/logo-512.png"), "manifest must include the 512px logo");
 
 const robots = await readFile(path.join(distDir, "robots.txt"), "utf8");
