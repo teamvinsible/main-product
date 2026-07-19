@@ -52,14 +52,14 @@ type BottomTab = "activity" | "next";
 type BentoCardId = "orchestrator" | "artifacts" | "health" | "preview" | "focus" | "activity";
 
 const DEFAULT_BENTO_ORDER: BentoCardId[] = [
-  "orchestrator",
+  "activity",
+  "focus",
+  "preview",
   "artifacts",
   "health",
-  "preview",
-  "focus",
-  "activity",
+  "orchestrator",
 ];
-const BENTO_ORDER_STORAGE_KEY = "teamvinsible.dashboard.bento-order.v1";
+const BENTO_ORDER_STORAGE_KEY = "teamvinsible.dashboard.bento-order.v2";
 
 const BENTO_CARD_LABELS: Record<BentoCardId, string> = {
   orchestrator: "Orchestrator",
