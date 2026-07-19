@@ -10,6 +10,7 @@ import {
   toDeepSeekTools,
   type ChatMessage,
 } from "../llm/deepseek";
+import { normalizeWorkspaceAssets, safePath } from "./workspace-assets";
 
 export type BuildResult = {
   ok: boolean;
@@ -64,13 +65,6 @@ const TOOL_SPECS: ToolDef[] = [
     },
   },
 ];
-
-function safePath(path: string): string | null {
-  const cleaned = path.replace(/^\/+/, "").replace(/\\/g, "/");
-  if (!cleaned || cleaned.includes("..") || cleaned.startsWith(".git/")) return null;
-  if (cleaned.length > 200) return null;
-  return cleaned;
-}
 
 async function r2Put(env: Env, projectId: string, path: string, content: string) {
   if (!env.WORKSPACES) throw new Error("WORKSPACES R2 binding missing");
@@ -301,13 +295,18 @@ async function runDeepseekBuild(
     {
       role: "system",
       content:
-        "You are an engineering agent on Teamvinsible. Build small static web apps using tools. Prefer index.html, styles.css, app.js, package.json.",
+        "You are an engineering agent on Teamvinsible. Build small static web apps using tools. Write ONLY workspace-relative paths at the app root: index.html, styles.css, app.js, package.json. Never use /home, /Users, absolute paths, or nested folders for those entry files. HTML must link href=\"styles.css\" and src=\"app.js\" (same directory).",
     },
     {
       role: "user",
       content: `Build a small, beautiful static web app for this product brief.
-Use write_file for index.html, styles.css, app.js, and package.json (serve on port 5173).
-Keep it self-contained (no bundler required). Then call finish.
+Use write_file for these exact paths only:
+- index.html
+- styles.css
+- app.js
+- package.json (scripts.start should serve port 5173)
+
+Do not write to home/user/… or any absolute path. Keep it self-contained (no bundler). Then call finish.
 
 Title: ${opts.title}
 Slug: ${opts.swarmName}
@@ -380,6 +379,18 @@ ${opts.brief}`,
       ),
     );
     written.add("package.json");
+  }
+
+  const normalized = await normalizeWorkspaceAssets({
+    list: (prefix) => r2List(env, opts.projectId, prefix),
+    get: (path) => r2Get(env, opts.projectId, path),
+    put: async (path, content) => {
+      await r2Put(env, opts.projectId, path, content);
+      written.add(path);
+    },
+  });
+  if (normalized.fixed.length) {
+    console.log("workspace.assets.normalized", opts.projectId, normalized.fixed);
   }
 
   return {

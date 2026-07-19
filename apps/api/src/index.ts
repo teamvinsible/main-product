@@ -390,15 +390,27 @@ export default {
       }
       const published = await servePublished(env, hostSlug, pathname);
       if (published) return published;
+      if (pathname === "/favicon.ico" || pathname.endsWith("/favicon.ico")) {
+        return new Response(null, { status: 204 });
+      }
       return new Response("App not found", { status: 404 });
     }
 
     const pubMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
     if (pubMatch) {
       const slug = decodeURIComponent(pubMatch[1]!);
-      const rest = pubMatch[2] || "/";
+      const rest = pubMatch[2];
+      // Without a trailing slash, relative assets like styles.css resolve to /p/styles.css.
+      if (rest == null || rest === "") {
+        const target = new URL(request.url);
+        target.pathname = `/p/${encodeURIComponent(slug)}/`;
+        return Response.redirect(target.toString(), 308);
+      }
       const published = await servePublished(env, slug, rest, { pathServing: true });
       if (published) return published;
+      if (rest === "/favicon.ico" || rest.endsWith("/favicon.ico")) {
+        return new Response(null, { status: 204 });
+      }
       return new Response("App not found", { status: 404 });
     }
 

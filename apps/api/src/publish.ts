@@ -116,6 +116,35 @@ export async function publishProject(
     await env.WORKSPACES.put(indexKey, html, { httpMetadata: { contentType: "text/html" } });
   }
 
+  // Repair LLM path mistakes (e.g. home/user/styles.css while HTML links styles.css).
+  const { normalizeWorkspaceAssets } = await import("./orchestrator/workspace-assets");
+  await normalizeWorkspaceAssets({
+    list: async (prefix = "") => {
+      const listed = await env.WORKSPACES!.list({
+        prefix: `workspaces/${opts.projectId}/${prefix}`,
+        limit: 1_000,
+      });
+      return listed.objects.map((o) => o.key.replace(`workspaces/${opts.projectId}/`, ""));
+    },
+    get: async (rel) => {
+      const obj = await env.WORKSPACES!.get(`workspaces/${opts.projectId}/${rel}`);
+      return obj ? obj.text() : null;
+    },
+    put: async (rel, content) => {
+      const type =
+        rel.endsWith(".html")
+          ? "text/html"
+          : rel.endsWith(".css")
+            ? "text/css"
+            : rel.endsWith(".js") || rel.endsWith(".mjs")
+              ? "text/javascript"
+              : "text/plain";
+      await env.WORKSPACES!.put(`workspaces/${opts.projectId}/${rel}`, content, {
+        httpMetadata: { contentType: type },
+      });
+    },
+  });
+
   const workspacePrefix = `workspaces/${opts.projectId}/`;
   const versionPrefix = `publishes/${slug}/versions/${crypto.randomUUID()}/`;
   let cursor: string | undefined;
