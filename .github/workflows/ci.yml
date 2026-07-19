@@ -21,3 +21,5 @@ jobs:
         run: npm test -w @teamvinsible/api
       - name: Dry-run deploy (bundle check)
         run: npm run build -w @teamvinsible/api
+      - name: Build web (typecheck + bundle + SEO validation)
+        run: npm run build -w @teamvinsible/web
