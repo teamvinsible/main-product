@@ -17,12 +17,12 @@ import type {
   SpineSnapshot,
   SpineStage,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
+import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, skipAgent, startPreview, subscribeSpine } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { HealthCard } from "../components/HealthCard";
-import { MarkdownDoc } from "../components/MarkdownDoc";
+import { ArtifactDoc } from "../components/ArtifactDoc";
 import { OrchestratorHub } from "../components/OrchestratorHub";
 import { PreviewCard } from "../components/PreviewCard";
 import { PushSidebar } from "../components/PushSidebar";
@@ -283,6 +283,7 @@ export function SpinePage() {
   const [sandboxAvailable, setSandboxAvailable] = useState(false);
   const [skipBusy, setSkipBusy] = useState(false);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
+  const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [bentoOrder, setBentoOrder] = useState<BentoCardId[]>(readSavedBentoOrder);
@@ -293,6 +294,8 @@ export function SpinePage() {
   const bentoGridRef = useRef<HTMLDivElement>(null);
   const previousBentoRectsRef = useRef<Map<BentoCardId, DOMRect>>(new Map());
   const previousBentoOrderRef = useRef("");
+  const spineRef = useRef(spine);
+  spineRef.current = spine;
   const closeModal = useCallback(() => setModal(null), []);
 
   useEffect(() => {
@@ -468,76 +471,113 @@ export function SpinePage() {
 
   useEffect(() => {
     let alive = true;
-    let timer: number | undefined;
-    let inFlight = false;
+    let streamAbort: AbortController | undefined;
+    let reconnectTimer: number | undefined;
+    let latest: SpineSnapshot | null = null;
 
     const isActiveRun = (data: SpineSnapshot | null) => {
       const status = (data?.project?.status || "").toLowerCase();
       const stage = (data?.project?.stage || "").toLowerCase();
       if (!data?.project) return false;
       if (status === "running" || status === "queued" || status === "drafting") return true;
-      if (status === "completed" || status === "ready" || status === "failed") return false;
+      if (
+        status === "completed" ||
+        status === "ready" ||
+        status === "failed" ||
+        status === "published"
+      ) {
+        return false;
+      }
       if (stage === "ready" || stage === "idle") return false;
       if (stage && stage !== "ready") return true;
       return (data.agents || []).some((a) => a.signal === "active" || a.signal === "revision");
     };
 
-    const pollMs = (data: SpineSnapshot | null) => {
-      if (document.hidden) return null; // pause while tab is in background
-      return isActiveRun(data) ? 5000 : 30_000;
+    const stopStream = () => {
+      streamAbort?.abort();
+      streamAbort = undefined;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
     };
 
-    const schedule = (data: SpineSnapshot | null) => {
-      if (timer) window.clearTimeout(timer);
-      const ms = pollMs(data);
-      if (ms == null || isMockMode()) return;
-      timer = window.setTimeout(() => void load(), ms);
+    const applySpine = (data: SpineSnapshot) => {
+      latest = data;
+      setSpine((prev) => (prev === data ? prev : data));
+      setError(null);
+      if (!project && data.project?.id) {
+        navigate(`/dashboard/${encodeURIComponent(data.project.id)}`, { replace: true });
+      }
     };
 
-    const load = () => {
-      if (!alive || inFlight) return Promise.resolve();
-      inFlight = true;
-      return fetchSpine(project)
+    const startStream = (projectId: string) => {
+      if (!alive || isMockMode() || document.hidden) return;
+      stopStream();
+      const ac = new AbortController();
+      streamAbort = ac;
+
+      void subscribeSpine(
+        projectId,
+        {
+          onSpine: (data) => {
+            if (!alive) return;
+            applySpine(data);
+            if (!isActiveRun(data)) stopStream();
+          },
+          onEnd: () => {
+            if (!alive) return;
+            stopStream();
+          },
+          onError: (err) => {
+            if (!alive || ac.signal.aborted) return;
+            setError(err.message);
+          },
+        },
+        { signal: ac.signal },
+      )
+        .then(() => {
+          // Clean close without settle (proxy drop, DO eviction) — reconnect if still active.
+          if (!alive || ac.signal.aborted || document.hidden) return;
+          if (!isActiveRun(latest)) return;
+          reconnectTimer = window.setTimeout(() => {
+            if (alive && latest?.project?.id && isActiveRun(latest)) {
+              startStream(latest.project.id);
+            }
+          }, 4000);
+        })
+        .catch(() => {
+          if (!alive || ac.signal.aborted || document.hidden) return;
+          if (!isActiveRun(latest)) return;
+          reconnectTimer = window.setTimeout(() => {
+            if (alive && latest?.project?.id && isActiveRun(latest)) {
+              startStream(latest.project.id);
+            }
+          }, 4000);
+        });
+    };
+
+    const load = (opts?: { force?: boolean }) => {
+      return fetchSpine(project, opts)
         .then((data) => {
           if (!alive) return;
-          setSpine(data);
-          setError(null);
-          if (!project && data.project?.id) {
-            navigate(`/dashboard/${encodeURIComponent(data.project.id)}`, { replace: true });
-          }
-          schedule(data);
+          applySpine(data);
+          const projectId = data.project?.id || project;
+          if (projectId && isActiveRun(data)) startStream(projectId);
+          else stopStream();
         })
         .catch((err: Error) => {
-          if (alive) {
-            setError(err.message);
-            schedule(null); // retry slowly on error via idle interval
-          }
-        })
-        .finally(() => {
-          inFlight = false;
+          if (alive) setError(err.message);
         });
     };
 
     const onVisibility = () => {
       if (!alive || isMockMode()) return;
       if (document.hidden) {
-        if (timer) window.clearTimeout(timer);
-        timer = undefined;
-      } else {
-        void fetchSpine(project, { force: true })
-          .then((data) => {
-            if (!alive) return;
-            setSpine(data);
-            setError(null);
-            schedule(data);
-          })
-          .catch((err: Error) => {
-            if (alive) {
-              setError(err.message);
-              schedule(null);
-            }
-          });
+        stopStream();
+        return;
       }
+      void load({ force: true });
     };
 
     void load();
@@ -547,44 +587,52 @@ export function SpinePage() {
 
     return () => {
       alive = false;
-      if (timer) window.clearTimeout(timer);
+      stopStream();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [project, navigate]);
 
+  // Load artifact once per open spec/path — do not re-fetch when spine poll refreshes.
+  const openSpecId = modal?.type === "spec" ? modal.id : null;
+  const openSpecPath =
+    openSpecId && spine ? spine.specs.find((s) => s.id === openSpecId)?.path ?? null : null;
+  const artifactProjectId = spine?.project?.id || project || null;
+
   useEffect(() => {
-    if (modal?.type !== "spec" || !spine) {
+    if (!openSpecId) {
       setArtifactBody(null);
-      setArtifactError(null);
-      setArtifactLoading(false);
-      return;
-    }
-    const spec = spine.specs.find((s) => s.id === modal.id);
-    if (!spec) {
-      setArtifactBody(null);
+      setArtifactContentType(null);
       setArtifactError(null);
       setArtifactLoading(false);
       return;
     }
 
-    const projectId = spine.project?.id || project;
     let alive = true;
+    const projectId = artifactProjectId;
+    const path = openSpecPath;
+    const summaryFallback =
+      spineRef.current?.specs.find((s) => s.id === openSpecId)?.summary || "";
+
+    setArtifactBody(null);
+    setArtifactContentType(null);
     setArtifactLoading(true);
     setArtifactError(null);
 
     const load = async () => {
       try {
-        if (spec.path && projectId) {
-          const res = await fetchArtifact(projectId, spec.path);
+        if (path && projectId) {
+          const res = await fetchArtifact(projectId, path);
           if (!alive) return;
           setArtifactBody(res.content);
+          setArtifactContentType(res.contentType || null);
         } else {
-          setArtifactBody(spec.summary || "");
+          setArtifactBody(summaryFallback);
+          setArtifactContentType("text/markdown");
         }
       } catch (err) {
         if (!alive) return;
-        // Fall back to the spine summary so the drawer never goes blank.
-        setArtifactBody(spec.summary || "");
+        setArtifactBody(summaryFallback);
+        setArtifactContentType("text/markdown");
         setArtifactError(err instanceof Error ? err.message : String(err));
       } finally {
         if (alive) setArtifactLoading(false);
@@ -595,7 +643,7 @@ export function SpinePage() {
     return () => {
       alive = false;
     };
-  }, [modal, spine, project]);
+  }, [openSpecId, openSpecPath, artifactProjectId]);
 
   if (error && !spine) {
     return (
@@ -1192,10 +1240,14 @@ export function SpinePage() {
               </span>
               {modalSpec.path ? <p className="spec-preview-path">{modalSpec.path}</p> : null}
               <p className="muted">Updated {modalSpec.updatedAt} · {modalSpec.owner}</p>
-              {artifactLoading ? (
+              {artifactLoading && !artifactBody ? (
                 <p className="muted">Loading artifact…</p>
               ) : (
-                <MarkdownDoc content={artifactBody || modalSpec.summary || ""} />
+                <ArtifactDoc
+                  content={artifactBody || modalSpec.summary || ""}
+                  contentType={artifactContentType}
+                  path={modalSpec.path}
+                />
               )}
               {artifactError ? (
                 <p className="muted" style={{ marginTop: 8 }}>

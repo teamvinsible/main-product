@@ -375,6 +375,50 @@ export async function cfLoadSpine(
   };
 }
 
+/** Open an SSE stream from the project Mediator (auth/ownership already checked). */
+export async function cfOpenSpineStream(
+  env: Env,
+  auth: Authed,
+  projectKey: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const project = await cfGetProject(env, auth.user.id, projectKey);
+  if (!project) {
+    return new Response(JSON.stringify({ error: "Project not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!env.Mediator) {
+    return new Response(JSON.stringify({ error: "Mediator is unavailable" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const owned = await cfListProjects(env, auth.user.id);
+  const projects = owned.map((p) => ({
+    name: p.swarmName,
+    id: p.id,
+    status: p.status,
+    idea: p.brief,
+    updatedAt: p.updatedAt,
+    previewUrl: p.previewUrl,
+  }));
+
+  const mediator = await getMediator(env, project.id);
+  return mediator.fetch(
+    new Request("https://mediator/sse", {
+      method: "GET",
+      signal,
+      headers: {
+        Accept: "text/event-stream",
+        "X-Spine-Projects": JSON.stringify(projects),
+      },
+    }),
+  );
+}
+
 export async function cfSetPreview(
   env: Env,
   projectId: string,
