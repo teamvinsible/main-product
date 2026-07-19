@@ -15,6 +15,8 @@ interface Props {
   onPublish?: () => void;
   /** True once the crew finished and a publishable workspace exists. */
   canPublish?: boolean;
+  /** Celebrate when the run just shipped a live URL. */
+  highlight?: boolean;
 }
 
 function displayHost(url: string) {
@@ -37,14 +39,18 @@ export function PreviewCard({
   publishError,
   onPublish,
   canPublish = false,
+  highlight = false,
 }: Props) {
   const primaryUrl = liveUrl || sandboxUrl || null;
 
   return (
-    <section className="card preview-card" aria-label="Live app">
+    <section
+      className={`card preview-card${primaryUrl ? " has-url" : ""}${highlight ? " is-shipped" : ""}`}
+      aria-label="Live app"
+    >
       <header className="preview-card-head">
         <div>
-          <p className="orch-kicker">Deploy</p>
+          <p className="orch-kicker">{highlight ? "Just shipped" : "Deploy"}</p>
           <h3 className="preview-card-title">Live app</h3>
         </div>
         {primaryUrl ? (

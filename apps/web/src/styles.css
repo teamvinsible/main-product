@@ -1327,6 +1327,60 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
+}
+
+.preview-card.has-url .preview-card-url {
+  border-color: color-mix(in srgb, var(--green) 28%, var(--line));
+}
+
+.preview-card.is-shipped {
+  border-color: color-mix(in srgb, var(--green) 55%, var(--glass-border));
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--green) 14%, transparent),
+      transparent 55%
+    ),
+    var(--glass-fill);
+  background-image:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--green) 14%, transparent),
+      transparent 55%
+    ),
+    var(--glass-gradient);
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 1px color-mix(in srgb, var(--green) 28%, transparent),
+    0 18px 40px color-mix(in srgb, var(--green) 18%, transparent);
+  animation: previewShipPulse 1.4s ease-out 2;
+}
+
+.preview-card.is-shipped .orch-kicker {
+  color: var(--green);
+}
+
+.preview-card.is-shipped .preview-card-url {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+  background: color-mix(in srgb, var(--green) 12%, var(--surface-2));
+  color: var(--ink);
+  font-weight: 650;
+}
+
+@keyframes previewShipPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-card.is-shipped {
+    animation: none;
+  }
 }
 
 .preview-card-head {
@@ -5932,7 +5986,10 @@ a:hover {
 .landing-footer > a { width: max-content; }
 .landing-footer p { justify-self: end; margin: 0; color: var(--landing-muted); }
 .landing-footer nav { display: flex; gap: 1.5rem; color: var(--landing-muted); font-size: 0.78rem; }
-.landing-footer small { justify-self: end; color: var(--landing-muted); }
+.landing-footer small { justify-self: end; color: var(--landing-muted); display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
+.footer-credit { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-size: 0.72rem; color: var(--landing-muted); }
+.footer-flag { display: inline-block; width: 18px; height: 12px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12); vertical-align: -1px; }
+.legal-footer .footer-flag { margin-left: 2px; }
 
 [data-reveal] { opacity: 0; transform: translateY(34px); transition: opacity 0.75s cubic-bezier(.22,.8,.24,1), transform 0.75s cubic-bezier(.22,.8,.24,1); }
 [data-reveal].is-visible { opacity: 1; transform: translateY(0); }
@@ -5996,7 +6053,7 @@ a:hover {
   .faq-list details p { margin-left: 52px; }
   .landing-final { min-height: 620px; }
   .landing-footer { grid-template-columns: 1fr; }
-  .landing-footer p, .landing-footer small { justify-self: start; }
+  .landing-footer p, .landing-footer small { justify-self: start; align-items: flex-start; }
   .landing-footer nav { flex-wrap: wrap; }
 }
 

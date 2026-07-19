@@ -137,7 +137,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
 
         pingTimer = setInterval(() => {
           write("event: ping\ndata: {}\n\n");
-        }, 15_000);
+        }, 12_000);
 
         const onAbort = () => {
           if (pingTimer) clearInterval(pingTimer);
@@ -211,9 +211,9 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
         {
           id: crypto.randomUUID(),
           at: now,
-          message: `Mediator accepted brief for ${input.title}`,
+          message: `Nexus accepted brief for ${input.title}`,
           kind: "gate",
-          agent: "Mediator",
+          agent: "Nexus",
           phase: "intake",
         },
       ],
@@ -232,7 +232,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
             at: now,
             message: "CrewRun Workflow owns phases — domain agents will execute each step",
             kind: "gate",
-            agent: "Mediator",
+            agent: "Nexus",
             phase: "workflow",
           },
           ...this.state.activity,
@@ -709,7 +709,7 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       source: "swarm",
       projects,
       swarmOnline: true,
-      message: "No Mediator state yet. Launch a brief.",
+      message: "No Nexus state yet. Launch a brief.",
     };
   }
 

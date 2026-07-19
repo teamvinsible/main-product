@@ -260,7 +260,23 @@ function LegalPage({ eyebrow, title, route, intro, sections }: LegalPageProps) {
           </div>
         </article>
       </main>
-      <footer className="legal-footer"><BrandLogo /><span>© {new Date().getFullYear()} Teamvinsible</span><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link></footer>
+      <footer className="legal-footer">
+        <BrandLogo />
+        <span>
+          © {new Date().getFullYear()} Teamvinsible · Made with ❤️ &amp; AI by Froundrylabs in{" "}
+          <img
+            className="footer-flag"
+            src="/flag-india.svg"
+            alt="India"
+            width={18}
+            height={12}
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+        <Link to="/terms">Terms</Link>
+        <Link to="/privacy">Privacy</Link>
+      </footer>
     </div>
   );
 }

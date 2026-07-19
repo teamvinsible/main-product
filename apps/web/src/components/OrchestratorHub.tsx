@@ -35,7 +35,7 @@ const ICONS: Record<string, typeof IconSearch> = {
 };
 
 const LABELS: Record<string, string> = {
-  mediator: "Mediator",
+  mediator: "Nexus",
   research: "Research",
   product: "Product",
   brand: "Brand",
@@ -374,7 +374,7 @@ export function OrchestratorHub({
       <section className="sr-only" aria-labelledby={`orchestrator-summary-${uid}`}>
         <h3 id={`orchestrator-summary-${uid}`}>Orchestrator status</h3>
         <p>
-          Mediator coordinating {visibleAgents.length} domain agents with {activeFlows.length} active
+          Nexus coordinating {visibleAgents.length} domain agents with {activeFlows.length} active
           handoff{activeFlows.length === 1 ? "" : "s"}.
         </p>
         <ul>
@@ -594,7 +594,7 @@ export function OrchestratorHub({
               <div className="bubble" ref={setBubbleRef("mediator")}>
                 <IconStar size={canvas ? 26 : 16} />
               </div>
-              <div className="name">Mediator</div>
+              <div className="name">Nexus</div>
               <div className="detail">
                 {showFlows.length
                   ? `${showFlows.length} exchange${showFlows.length === 1 ? "" : "s"}`
@@ -659,7 +659,7 @@ export function OrchestratorHub({
               <IconStar size={22} />
             </div>
             <div>
-              <div className="name">Mediator</div>
+              <div className="name">Nexus</div>
               <div className="detail">
                 {activeFlows.length
                   ? `${activeFlows.length} live handoff${activeFlows.length === 1 ? "" : "s"}`

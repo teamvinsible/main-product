@@ -200,7 +200,7 @@ export const MOCK_SPINE: SpineSnapshot = {
       summary: "Primary deliverable is a written weekly brief; charts are supporting, not the product.",
       status: "accepted",
       at: "Yesterday",
-      author: "Mediator",
+      author: "Nexus",
       kind: "policy",
     },
     {
@@ -266,9 +266,9 @@ export const MOCK_SPINE: SpineSnapshot = {
     {
       id: "a2",
       at: "14:01",
-      message: "Mediator dispatched narrative brief to Brand",
+      message: "Nexus dispatched narrative brief to Brand",
       kind: "signal",
-      agent: "Mediator",
+      agent: "Nexus",
       phase: "branding",
     },
     {
@@ -330,7 +330,7 @@ export const MOCK_SPINE: SpineSnapshot = {
   nextUp: [
     { id: "n1", label: "Resolve retention grain decision", owner: "Product", eta: "Today" },
     { id: "n2", label: "Unblock warehouse credentials", owner: "Engineering", eta: "Today" },
-    { id: "n3", label: "Freeze PRD for consolidate pass", owner: "Mediator", eta: "Tomorrow" },
+    { id: "n3", label: "Freeze PRD for consolidate pass", owner: "Nexus", eta: "Tomorrow" },
     { id: "n4", label: "Kick off social launch kit", owner: "Social", eta: "After ready" },
   ],
   specsTotal: 5,

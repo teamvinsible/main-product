@@ -12,7 +12,7 @@ const FAQS = [
   {
     question: "What is Teamvinsible?",
     answer:
-      "Teamvinsible is an AI agent coordination platform that turns a brief into planned, reviewed, and publishable work. A Mediator coordinates specialist agents while you retain visibility into their specs, files, decisions, and progress.",
+      "Teamvinsible is an AI agent coordination platform that turns a brief into planned, reviewed, and publishable work. Nexus coordinates specialist agents while you retain visibility into their specs, files, decisions, and progress.",
   },
   {
     question: "How is Teamvinsible different from an AI app builder?",
@@ -22,7 +22,7 @@ const FAQS = [
   {
     question: "Which AI agents are included?",
     answer:
-      "A project can involve Research, Product, Brand, Design, Engineering, Review, Social, and Email specialists, with a Mediator coordinating the right roles for the brief.",
+      "A project can involve Research, Product, Brand, Design, Engineering, Review, Social, and Email specialists, with Nexus coordinating the right roles for the brief.",
   },
   {
     question: "Can I see what the agents are doing?",

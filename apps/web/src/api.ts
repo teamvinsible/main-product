@@ -217,6 +217,8 @@ export function fetchSpine(project?: string, opts?: { force?: boolean }) {
 
 export type SpineStreamHandlers = {
   onSpine: (spine: SpineSnapshot) => void;
+  /** Fired on every SSE frame (spine or ping) so clients can detect stalls. */
+  onActivity?: () => void;
   onEnd?: (reason: string) => void;
   onError?: (err: Error) => void;
 };
@@ -274,6 +276,7 @@ export async function subscribeSpine(
   let ended = false;
 
   const handleEvent = (event: string, data: string) => {
+    handlers.onActivity?.();
     if (event === "ping") return;
     if (event === "end") {
       ended = true;

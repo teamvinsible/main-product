@@ -92,12 +92,12 @@ export const CREW_PHASES: CrewPhase[] = [
   },
 ];
 
-/** Pod roster — Mediator is the project lead; others are functional specialists. */
+/** Pod roster — Nexus is the project lead; others are functional specialists. */
 export function baseCrewAgents(): DomainAgentNode[] {
   return [
     {
       id: "mediator",
-      label: "Mediator",
+      label: "Nexus",
       role: "Project lead",
       detail: "Runs the pod, sequences phases, and gatekeeps ship",
       signal: "standby",
