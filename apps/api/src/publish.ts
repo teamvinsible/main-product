@@ -281,18 +281,20 @@ export async function servePublished(
   if (!obj && !rel.includes(".")) obj = await env.WORKSPACES.get(`${prefix}index.html`);
   if (!obj) return null;
   const headers = new Headers();
-  const contentType = obj.httpMetadata?.contentType || guessContentType(rel);
+  let contentType = obj.httpMetadata?.contentType || guessContentType(rel);
+  if (contentType === "text/html") contentType = "text/html; charset=utf-8";
   headers.set("Content-Type", contentType);
   headers.set("Cache-Control", "public, max-age=300, s-maxage=600");
   headers.set("X-Content-Type-Options", "nosniff");
   if (options.pathServing) {
-    // /p/{slug} shares the platform origin with the API (and possibly the web
-    // app), and the content is user-generated. `sandbox` without
-    // `allow-same-origin` runs it in an opaque origin so it cannot touch
-    // platform cookies/localStorage; ACAO lets its module scripts/fetches load
-    // relative assets from that opaque origin.
-    headers.set("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-popups allow-modals");
-    headers.set("Access-Control-Allow-Origin", "*");
+    // /p/{slug} shares the API host. Do NOT use CSP `sandbox` here — it makes
+    // the top-level document an opaque origin and breaks localStorage / relative
+    // app behavior. Restrict framing instead.
+    headers.set(
+      "Content-Security-Policy",
+      "frame-ancestors 'self' https://teamvinsible.com https://www.teamvinsible.com https://*.teamvinsible-web.pages.dev",
+    );
+    headers.set("X-Frame-Options", "SAMEORIGIN");
   }
 
   // Inject platform favicon link into HTML when the generated app omitted it.
