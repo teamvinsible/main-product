@@ -9,9 +9,11 @@ const LABELS: Record<string, string> = {
   research: "Research",
   product: "Product",
   brand: "Brand",
+  design: "Design",
   social: "Social",
   email: "Email",
   engineering: "Engineering",
+  eng: "Engineering",
   review: "Review",
 };
 
