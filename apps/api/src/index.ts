@@ -8,12 +8,14 @@ import {
   cfIntake,
   cfListProjects,
   cfLoadSpine,
+  cfOpenSpineStream,
   cfReadArtifact,
   cfSetPreview,
   cfStartRun,
 } from "./orchestrator/cf";
 import { maybeProxySandbox, startProjectPreview } from "./preview";
 import { publishProject, servePublished, slugFromHost } from "./publish";
+import { isFaviconPath, platformFaviconResponse } from "./brand/favicon";
 import { proxySwarm, swarmNameForUser } from "./swarm";
 import { readJsonObject, RequestError, slugField, stringField } from "./validation";
 
@@ -144,6 +146,13 @@ async function handleAuthed(
     return json(env, request, { activity: spine.activity, source: "cf" }, 200, {
       "Cache-Control": "private, max-age=5",
     });
+  }
+
+  if (pathname === "/api/spine/stream" && request.method === "GET") {
+    const projectKey = url.searchParams.get("project");
+    if (!projectKey) throw new RequestError("project is required");
+    const stream = await cfOpenSpineStream(env, auth, projectKey, request.signal);
+    return withCors(env, request, stream);
   }
 
   if (pathname === "/api/artifact" && request.method === "GET") {
@@ -390,9 +399,7 @@ export default {
       }
       const published = await servePublished(env, hostSlug, pathname);
       if (published) return published;
-      if (pathname === "/favicon.ico" || pathname.endsWith("/favicon.ico")) {
-        return new Response(null, { status: 204 });
-      }
+      if (isFaviconPath(pathname)) return platformFaviconResponse();
       return new Response("App not found", { status: 404 });
     }
 
@@ -408,9 +415,7 @@ export default {
       }
       const published = await servePublished(env, slug, rest, { pathServing: true });
       if (published) return published;
-      if (rest === "/favicon.ico" || rest.endsWith("/favicon.ico")) {
-        return new Response(null, { status: 204 });
-      }
+      if (isFaviconPath(rest)) return platformFaviconResponse();
       return new Response("App not found", { status: 404 });
     }
 

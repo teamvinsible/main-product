@@ -10,6 +10,7 @@ import {
   toDeepSeekTools,
   type ChatMessage,
 } from "../llm/deepseek";
+import { ensureFaviconLink, PLATFORM_FAVICON_SVG } from "../brand/favicon";
 import { normalizeWorkspaceAssets, safePath } from "./workspace-assets";
 
 export type BuildResult = {
@@ -116,6 +117,7 @@ export async function scaffoldApp(
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>${escapeHtml(title)}</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
@@ -163,6 +165,7 @@ h1{font-size:clamp(2rem,5vw,3rem);letter-spacing:-.04em;line-height:1.05;margin:
     ["styles.css", css],
     ["app.js", js],
     ["package.json", pkg],
+    ["favicon.svg", PLATFORM_FAVICON_SVG],
     ["artifacts/eng.md", `# Engineering\n\nScaffolded app for **${title}**.\n\n${brief}\n`],
   ] as const;
 
@@ -391,6 +394,17 @@ ${opts.brief}`,
   });
   if (normalized.fixed.length) {
     console.log("workspace.assets.normalized", opts.projectId, normalized.fixed);
+  }
+
+  // Platform brand mark for every generated app.
+  await r2Put(env, opts.projectId, "favicon.svg", PLATFORM_FAVICON_SVG);
+  written.add("favicon.svg");
+  const indexHtml = await r2Get(env, opts.projectId, "index.html");
+  if (indexHtml) {
+    const withIcon = ensureFaviconLink(indexHtml);
+    if (withIcon !== indexHtml) {
+      await r2Put(env, opts.projectId, "index.html", withIcon);
+    }
   }
 
   return {

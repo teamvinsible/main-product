@@ -1,4 +1,9 @@
 import type { Env } from "./env";
+import {
+  ensureFaviconLink,
+  isFaviconPath,
+  platformFaviconResponse,
+} from "./brand/favicon";
 
 /**
  * Subdomains that must never be claimable as publish slugs — they are (or may
@@ -145,6 +150,19 @@ export async function publishProject(
     },
   });
 
+  // Always ship the platform brand mark with generated apps.
+  const { PLATFORM_FAVICON_SVG, ensureFaviconLink } = await import("./brand/favicon");
+  await env.WORKSPACES.put(`workspaces/${opts.projectId}/favicon.svg`, PLATFORM_FAVICON_SVG, {
+    httpMetadata: { contentType: "image/svg+xml" },
+  });
+  const indexObj = await env.WORKSPACES.get(`workspaces/${opts.projectId}/index.html`);
+  if (indexObj) {
+    const html = ensureFaviconLink(await indexObj.text());
+    await env.WORKSPACES.put(`workspaces/${opts.projectId}/index.html`, html, {
+      httpMetadata: { contentType: "text/html" },
+    });
+  }
+
   const workspacePrefix = `workspaces/${opts.projectId}/`;
   const versionPrefix = `publishes/${slug}/versions/${crypto.randomUUID()}/`;
   let cursor: string | undefined;
@@ -242,6 +260,11 @@ export async function servePublished(
   if (rel.startsWith(`p/${slug}/`)) rel = rel.slice(`p/${slug}/`.length);
   if (rel.startsWith(`${slug}/`)) rel = rel.slice(slug.length + 1);
 
+  // Always serve the platform brand mark for generated apps.
+  if (isFaviconPath(rel)) {
+    return platformFaviconResponse();
+  }
+
   const manifestObject = await env.WORKSPACES.get(`publishes/${slug}/manifest.json`);
   let prefix = `publishes/${slug}/`;
   if (manifestObject) {
@@ -258,7 +281,8 @@ export async function servePublished(
   if (!obj && !rel.includes(".")) obj = await env.WORKSPACES.get(`${prefix}index.html`);
   if (!obj) return null;
   const headers = new Headers();
-  headers.set("Content-Type", obj.httpMetadata?.contentType || guessContentType(rel));
+  const contentType = obj.httpMetadata?.contentType || guessContentType(rel);
+  headers.set("Content-Type", contentType);
   headers.set("Cache-Control", "public, max-age=300, s-maxage=600");
   headers.set("X-Content-Type-Options", "nosniff");
   if (options.pathServing) {
@@ -270,6 +294,13 @@ export async function servePublished(
     headers.set("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-popups allow-modals");
     headers.set("Access-Control-Allow-Origin", "*");
   }
+
+  // Inject platform favicon link into HTML when the generated app omitted it.
+  if (rel.endsWith(".html") || rel === "index.html" || contentType.includes("text/html")) {
+    const html = ensureFaviconLink(await obj.text());
+    return new Response(html, { status: 200, headers });
+  }
+
   return new Response(obj.body, { status: 200, headers });
 }
 
