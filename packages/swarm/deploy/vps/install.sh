@@ -62,11 +62,9 @@ echo "==> Environment file..."
 if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
   cp .env.example .env
   TOKEN=$(openssl rand -hex 32)
-  TG_SECRET=$(openssl rand -hex 16)
   GH_SECRET=$(openssl rand -hex 32)
   DB_PASS=$(openssl rand -hex 24)
   sed -i "s|^SWARM_DASHBOARD_TOKEN=.*|SWARM_DASHBOARD_TOKEN=${TOKEN}|" .env
-  sed -i "s|^SWARM_TELEGRAM_WEBHOOK_SECRET=.*|SWARM_TELEGRAM_WEBHOOK_SECRET=${TG_SECRET}|" .env
   sed -i "s|^SWARM_GITHUB_WEBHOOK_SECRET=.*|SWARM_GITHUB_WEBHOOK_SECRET=${GH_SECRET}|" .env
   sed -i "s|^SWARM_BIND=.*|SWARM_BIND=127.0.0.1|" .env
   sed -i "s|^SWARM_SANDBOX=.*|SWARM_SANDBOX=exec|" .env
@@ -84,7 +82,8 @@ echo "==> Starting Postgres (localhost only)..."
 if [[ -f .postgres.env ]]; then
   set -a; source .postgres.env; set +a
 fi
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-swarm}"
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required; run the installer-generated .postgres.env setup first}"
+export POSTGRES_PASSWORD
 docker compose -f docker-compose.yml -f deploy/vps/docker-compose.prod.yml up -d
 npm run db:migrate
 

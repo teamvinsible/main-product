@@ -5,14 +5,13 @@
 // the global .env, so a project can carry its own provider token. Secrets are
 // never stored in the database — only the binding (provider + profile) is.
 
-export type DeployProvider = "vercel" | "digitalocean" | "do-droplet" | "gcp" | "aws";
+export type DeployProvider = "vercel" | "digitalocean" | "gcp" | "aws";
 
-export const DEPLOY_PROVIDERS: DeployProvider[] = ["vercel", "digitalocean", "do-droplet", "gcp", "aws"];
+export const DEPLOY_PROVIDERS: DeployProvider[] = ["vercel", "digitalocean", "gcp", "aws"];
 
 export const DEPLOY_PROVIDER_LABELS: Record<DeployProvider, string> = {
   vercel: "Vercel",
   digitalocean: "DigitalOcean (App Platform)",
-  "do-droplet": "DigitalOcean (hardened Droplet backend)",
   gcp: "GCP (Cloud Run)",
   aws: "AWS",
 };
@@ -30,9 +29,6 @@ interface ProviderEnvSpec {
 const DEPLOY_ENV_SPEC: Record<DeployProvider, ProviderEnvSpec> = {
   vercel:       { secrets: ["VERCEL_TOKEN"] },
   digitalocean: { secrets: ["DIGITALOCEAN_TOKEN"] },
-  // Only DIGITALOCEAN_TOKEN is required up front; SPACES_*/TAILSCALE_AUTHKEY/SOPS
-  // are read by the harness Provisioner from env as needed (validated at deploy).
-  "do-droplet": { secrets: ["DIGITALOCEAN_TOKEN"], config: ["DO_REGION", "HEADSCALE_URL", "SITE_DOMAIN"] },
   gcp:          { secrets: ["GCP_SA_KEY"], config: ["GCP_PROJECT", "GCP_REGION"] },
   aws:          { secrets: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"], config: ["AWS_REGION"] },
 };

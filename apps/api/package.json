@@ -6,14 +6,24 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run --outdir=dist",
-    "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "deploy": "node scripts/validate-deploy.mjs && wrangler deploy",
+    "cf:types": "wrangler types worker-configuration.d.ts --include-runtime false --strict-vars false",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "db:migrate:local": "wrangler d1 migrations apply teamvinsible --local",
+    "db:migrate": "wrangler d1 migrations apply teamvinsible --remote"
   },
   "dependencies": {
-    "@teamvinsible/shared": "*"
+    "@cloudflare/containers": "^0.3.7",
+    "@cloudflare/sandbox": "^0.7.0",
+    "@supabase/supabase-js": "^2.50.0",
+    "@teamvinsible/shared": "*",
+    "agents": "^0.17.4",
+    "jose": "^6.0.11"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250317.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "wrangler": "^4.14.0"
   }

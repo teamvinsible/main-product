@@ -67,13 +67,6 @@ const CLI_GUIDES = [
     use: "Migration status, local validation, seed scripts, and approved migration applies.",
   },
   {
-    name: "DigitalOcean CLI",
-    install: "winget install DigitalOcean.Doctl",
-    verify: "doctl version",
-    env: ["DIGITALOCEAN_ACCESS_TOKEN", "DO_APP_ID"],
-    use: "App Platform deploy status, app updates, and approved production deploys.",
-  },
-  {
     name: "Cloudflare Wrangler",
     install: "npm install -g wrangler",
     verify: "wrangler --version",
@@ -409,7 +402,6 @@ function TerminalSessions() {
       <div className="mb-3 flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => preset({ name: "Supabase login", command: "supabase login" })}>Supabase login</Button>
         <Button type="button" variant="outline" size="sm" onClick={() => preset({ name: "Supabase projects", command: "supabase projects list" })}>Supabase projects</Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => preset({ name: "DigitalOcean auth", command: "doctl auth init" })}>doctl auth</Button>
         <Button type="button" variant="outline" size="sm" onClick={() => preset({ name: "Cloudflare login", command: "wrangler login" })}>Wrangler login</Button>
       </div>
 

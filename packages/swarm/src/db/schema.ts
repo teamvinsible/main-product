@@ -237,6 +237,24 @@ export const chatMessages = pgTable("chat_messages", {
   index("chat_messages_project_idx").on(t.project, t.createdAt),
 ]);
 
+// Durable user-facing events. Delivery adapters are secondary; this table is
+// the canonical in-app inbox and remains available if an outbound webhook fails.
+export const notifications = pgTable("notifications", {
+  id:        uuid("id").primaryKey(),
+  project:   text("project").notNull(),
+  runId:     uuid("run_id"),
+  kind:      text("kind").notNull(),
+  severity:  text("severity").notNull().default("info"),
+  title:     text("title").notNull(),
+  message:   text("message").notNull(),
+  metadata:  jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  readAt:    timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("notifications_project_created_idx").on(t.project, t.createdAt),
+  index("notifications_unread_idx").on(t.readAt, t.createdAt),
+]);
+
 // A check is "blocking" when failing it means the app is dead on arrival — it
 // won't install, compile, or has no runnable entrypoint. Everything else
 // (tests, lint, analyze, artifact/runbook completeness) is "advisory": it ships

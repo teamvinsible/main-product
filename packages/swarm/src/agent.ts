@@ -349,7 +349,7 @@ export class Agent {
         model: this.modelConfig.model,
         cwd: this.workspaceDir,
         permissionMode: "bypassPermissions",
-        maxTurns: 50,
+        maxTurns: this.maxTurnsForRole(),
         hooks: this.sensitiveReadGuardHooks(),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
       },
@@ -954,7 +954,7 @@ export class Agent {
   // Any LlmProvider plugs in unchanged — this is the LLM-agnostic core.
   private async runAgenticLoop(prompt: string, provider: LlmProvider): Promise<string> {
     const model = provider.model;
-    const maxTurns = 50;
+    const maxTurns = this.maxTurnsForRole();
     const mcpLoaded = loadMcpServers(this.workspaceDir);
     this.mcpServerNames = Object.keys(mcpLoaded.servers);
     const mcpRegistry = await createMcpToolRegistry(this.workspaceDir);
@@ -1109,6 +1109,14 @@ export class Agent {
     }
 
     return fullOutput;
+  }
+
+  private maxTurnsForRole(): number {
+    const envOverride = Number(process.env.SWARM_MAX_TURNS || "");
+    if (Number.isFinite(envOverride) && envOverride >= 1) return Math.floor(envOverride);
+    // Coding agents build entire apps and need significantly more turns than planners
+    const codingRoles: AgentRole[] = ["frontend-dev", "backend-dev", "qa-engineer", "devops"];
+    return codingRoles.includes(this.role) ? 120 : 60;
   }
 
   private repeatedToolCallLimit(): number {

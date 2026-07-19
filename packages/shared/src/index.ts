@@ -150,6 +150,9 @@ export interface ProjectListItem {
   phase?: string;
   idea?: string;
   updatedAt?: string;
+  /** Platform project UUID when owned via Supabase */
+  id?: string;
+  previewUrl?: string | null;
 }
 
 export interface SpineSnapshot {
@@ -171,10 +174,13 @@ export interface SpineSnapshot {
   nextUp: NextUpItem[];
   specsTotal: number;
   live: boolean;
-  source: "swarm";
+  source: "swarm" | "mock";
   projects: ProjectListItem[];
   swarmOnline: boolean;
   message?: string;
+  /** Live Cloudflare Sandbox preview when available */
+  previewUrl?: string | null;
+  sandboxId?: string | null;
 }
 
 export interface IntakeRequest {
@@ -185,12 +191,50 @@ export interface IntakeRequest {
 }
 
 export interface IntakePlan {
+  ok?: boolean;
+  idea?: string;
   summary: string;
-  category: string;
-  categoryLabel: string;
+  /** Swarm-aligned category slug */
+  projectType?: string;
+  projectTypeLabel?: string;
+  /** Legacy aliases */
+  category?: string;
+  categoryLabel?: string;
   clarifyingQuestions: string[];
-  suggestedAgents: string[];
+  suggestedAgents?: string[];
   suggestedName: string;
+  mode?: "new" | "change";
+}
+
+export interface PlatformProject {
+  id: string;
+  swarmName: string;
+  title: string;
+  brief: string;
+  status: string;
+  previewUrl: string | null;
+  sandboxId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RunStartResponse {
+  ok: boolean;
+  name: string;
+  projectId?: string;
+  swarmName?: string;
+  pid?: number;
+  error?: string;
+}
+
+export interface PreviewStatus {
+  ok: boolean;
+  projectId: string;
+  swarmName: string;
+  previewUrl: string | null;
+  sandboxId: string | null;
+  status: "ready" | "starting" | "unavailable" | "error";
+  message?: string;
 }
 
 export interface PublishTarget {
@@ -198,4 +242,11 @@ export interface PublishTarget {
   customDomain?: string;
   status: "preview" | "published" | "stopped";
   url: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
 }

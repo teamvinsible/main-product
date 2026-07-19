@@ -1,0 +1,79 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "teamvinsible-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "PLATFORM_HOST": "teamvinsible.com",
+    "ALLOWED_ORIGINS": "https://teamvinsible.com,https://www.teamvinsible.com",
+    "LEGACY_SWARM": "false",
+    "DISPATCH_NAMESPACE": "teamvinsible-customers"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "teamvinsible",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "WORKSPACES",
+      "bucket_name": "teamvinsible-workspaces",
+      "preview_bucket_name": "teamvinsible-workspaces-preview"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "RUN_QUEUE", "queue": "teamvinsible-runs" }],
+    "consumers": [
+      {
+        "queue": "teamvinsible-runs",
+        "max_batch_size": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "teamvinsible-runs-dlq"
+      },
+      { "queue": "teamvinsible-runs-dlq", "max_batch_size": 10, "max_retries": 1 }
+    ]
+  },
+  "triggers": { "crons": ["17 3 * * *"] },
+  "ratelimits": [
+    {
+      "name": "RUN_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+  "workflows": [
+    { "name": "crew-run", "binding": "CREW_WORKFLOW", "class_name": "CrewRunWorkflow" }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "Mediator", "class_name": "MediatorAgent" },
+      { "name": "DomainAgent", "class_name": "DomainAgent" },
+      { "name": "Sandbox", "class_name": "Sandbox" },
+      { "name": "SwarmRuntime", "class_name": "SwarmRuntime" }
+    ]
+  },
+  "containers": [
+    { "class_name": "Sandbox", "image": "./Dockerfile", "instance_type": "lite", "max_instances": 5 },
+    { "class_name": "SwarmRuntime", "image": "./Dockerfile.runtime", "instance_type": "basic", "max_instances": 10 }
+  ],
+  "dispatch_namespaces": [
+    { "binding": "DISPATCHER", "namespace": "teamvinsible-customers" }
+  ],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Sandbox", "MediatorAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["SwarmRuntime"] },
+    { "tag": "v3", "new_sqlite_classes": ["DomainAgent"] }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  },
+  "upload_source_maps": true
+}

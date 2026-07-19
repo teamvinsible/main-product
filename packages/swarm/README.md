@@ -235,17 +235,16 @@ Example change payload:
 }
 ```
 
-Telegram, Google Chat, Slack, Discord, or email initiation can use the built-in webhook adapters (`/api/webhooks/telegram`, `/api/webhooks/google-chat`) or a small custom adapter that validates the sender and calls the local API. Do not expose the dashboard API directly to the public internet without authentication.
+Google Chat initiation can use the built-in webhook adapter (`/api/webhooks/google-chat`). Other systems can use a small authenticated adapter that calls the local API. Do not expose the dashboard API directly to the public internet without authentication.
 
 ### Built-in webhooks (`swarm serve`)
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /api/webhooks/telegram` | Bot commands: `/run`, `/change`, `/status`, `/resume` |
 | `POST /api/webhooks/google-chat` | Google Chat app commands (same verbs) |
 | `POST /api/webhooks/github` | `issue_comment` with `/swarm fix …`, `workflow_dispatch` |
 
-Configure in `.env`: `SWARM_TELEGRAM_*`, `SWARM_GOOGLE_CHAT_*`, `SWARM_GITHUB_WEBHOOK_SECRET`, `SWARM_GITHUB_ALLOWED_REPOS`. Webhooks use their own secrets (exempt from `SWARM_DASHBOARD_TOKEN`). Status push: Telegram (`SWARM_TELEGRAM_BOT_TOKEN` + `SWARM_TELEGRAM_CHAT_ID`) and/or Google Chat (`SWARM_GOOGLE_CHAT_WEBHOOK_URL`).
+Configure in `.env`: `SWARM_GOOGLE_CHAT_*`, `SWARM_GITHUB_WEBHOOK_SECRET`, and `SWARM_GITHUB_ALLOWED_REPOS`. Webhooks use their own secrets (exempt from `SWARM_DASHBOARD_TOKEN`). Every run status is persisted to the in-app inbox at `GET /api/notifications`; optionally set `SWARM_NOTIFICATION_WEBHOOK_URL` (and `SWARM_NOTIFICATION_WEBHOOK_TOKEN`) for generic outbound delivery, or `SWARM_GOOGLE_CHAT_WEBHOOK_URL` for Google Chat.
 
 ### VPS / always-on hosting (dark factory)
 

@@ -215,6 +215,35 @@ export function IconMonitor(p: IconProps) {
   );
 }
 
+export function IconPulse(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M3 12h3l2.5-6 3 12L14 9l2 3h5" />
+    </svg>
+  );
+}
+
+export function IconUsers(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19c.6-3 2.7-4.5 5.5-4.5S14 16 14.5 19" />
+      <circle cx="17.5" cy="9" r="2.4" />
+      <path d="M15 19c.4-2 1.7-3.2 3.8-3.2 1.4 0 2.5.5 3.2 1.5" />
+    </svg>
+  );
+}
+
+export function IconAlert(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M12 3.5 21 19H3L12 3.5Z" />
+      <path d="M12 9v5" />
+      <circle cx="12" cy="16.5" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function IconFlower({ size = 28, ...props }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" {...props}>

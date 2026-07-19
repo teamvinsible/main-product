@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "Vibe coding with a full agent crew — build, coordinate, and run the business in the open",
   "workspaces": [
-    "packages/*",
+    "packages/shared",
+    "packages/swarm",
     "apps/*"
   ],
   "scripts": {
@@ -13,6 +14,9 @@
     "dev:api": "npm run dev -w @teamvinsible/api",
     "dev:swarm": "npm run serve -w @teamvinsible/swarm",
     "build": "npm run build -w @teamvinsible/web && npm run build -w @teamvinsible/api",
+    "typecheck": "npm run typecheck -w @teamvinsible/shared && npm run typecheck -w @teamvinsible/web && npm run typecheck -w @teamvinsible/api",
+    "test": "npm test -w @teamvinsible/api",
+    "db:migrate:local": "npm run db:migrate:local -w @teamvinsible/api",
     "db:up": "npm run db:up -w @teamvinsible/swarm",
     "db:down": "npm run db:down -w @teamvinsible/swarm",
     "swarm:install": "npm install -w @teamvinsible/swarm"

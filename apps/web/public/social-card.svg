@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#27231d" stroke-width="1"/></pattern>
+    <radialGradient id="glow"><stop stop-color="#eda84c" stop-opacity=".24"/><stop offset="1" stop-color="#eda84c" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0b0a08"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <circle cx="960" cy="150" r="330" fill="url(#glow)"/>
+  <g transform="translate(72 62)">
+    <path d="M0 0h34M17 0v29M4 14l13 15 13-15" fill="none" stroke="#f3eee5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle r="3.5" fill="#eda84c"/><circle cx="34" r="3.5" fill="#eda84c"/><circle cx="17" cy="29" r="3.5" fill="#eda84c"/>
+    <text x="48" y="24" fill="#f3eee5" font-family="Arial, sans-serif" font-size="27" font-weight="700" letter-spacing="-1.5">team<tspan fill="#eda84c">v</tspan>insible</text>
+  </g>
+  <text x="72" y="235" fill="#f3eee5" font-family="Arial, sans-serif" font-size="78" font-weight="700" letter-spacing="-4">One brief.</text>
+  <text x="72" y="320" fill="#eda84c" font-family="Arial, sans-serif" font-size="78" font-weight="700" letter-spacing="-4">A whole crew in motion.</text>
+  <text x="76" y="385" fill="#999188" font-family="Arial, sans-serif" font-size="25">AI agent coordination from idea to reviewed, publishable work.</text>
+  <g transform="translate(72 480)" font-family="Arial, sans-serif" font-size="18">
+    <rect width="188" height="52" rx="26" fill="#181511" stroke="#342f28"/><circle cx="28" cy="26" r="5" fill="#5cd4a5"/><text x="45" y="32" fill="#d9d3c9">Specialist agents</text>
+    <rect x="205" width="190" height="52" rx="26" fill="#181511" stroke="#342f28"/><circle cx="233" cy="26" r="5" fill="#5cd4a5"/><text x="250" y="32" fill="#d9d3c9">Visible workflows</text>
+    <rect x="412" width="202" height="52" rx="26" fill="#181511" stroke="#342f28"/><circle cx="440" cy="26" r="5" fill="#5cd4a5"/><text x="457" y="32" fill="#d9d3c9">Preview to publish</text>
+  </g>
+  <g transform="translate(923 378)" fill="none" stroke="#eda84c">
+    <circle r="76" opacity=".2"/><circle r="125" opacity=".12"/><circle r="175" opacity=".08"/>
+    <path d="M-128-55L0 0 105-115M0 0l138 72M0 0L-90 125" opacity=".25"/>
+    <circle r="34" fill="#15120e" stroke-width="2"/><text x="-13" y="8" fill="#eda84c" stroke="none" font-family="Arial" font-size="23" font-weight="700">M</text>
+    <circle cx="-128" cy="-55" r="19" fill="#15120e"/><circle cx="105" cy="-115" r="19" fill="#15120e"/><circle cx="138" cy="72" r="19" fill="#15120e"/><circle cx="-90" cy="125" r="19" fill="#15120e"/>
+  </g>
+</svg>

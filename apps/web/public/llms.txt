@@ -1,0 +1,15 @@
+# Teamvinsible
+
+> Teamvinsible is an AI agent coordination platform for turning one project brief into planned, reviewed, previewed, and publishable work.
+
+## Canonical public pages
+
+- [Home](https://teamvinsible.com/): Product overview, capabilities, workflow, and frequently asked questions.
+- [Terms of Service](https://teamvinsible.com/terms): Terms governing use of the service.
+- [Privacy Policy](https://teamvinsible.com/privacy): Data collection, processing, retention, and user rights.
+
+## Product summary
+
+Teamvinsible uses a Mediator to coordinate specialist Research, Product, Brand, Design, Engineering, Review, Social, and Email agents. The Coordination Spine exposes agent state, artifacts, decisions, activity, revision loops, health, previews, and publishing status.
+
+Dashboard and authentication routes are private application surfaces and should not be indexed or cited as public product documentation.

@@ -1,0 +1,8 @@
+# Cloudflare Pages — apps/web
+# Build command: npm run build -w @teamvinsible/web
+# Output directory: apps/web/dist
+# Root directory: (monorepo root) or apps/web
+
+name = "teamvinsible-web"
+compatibility_date = "2025-03-01"
+pages_build_output_dir = "./dist"

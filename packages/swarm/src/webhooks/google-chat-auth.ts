@@ -52,13 +52,21 @@ function verifyRs256(token: string, key: crypto.KeyObject): boolean {
   }
 }
 
+function validTimes(payload: Record<string, unknown>): boolean {
+  const now = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== "number" || payload.exp <= now) return false;
+  if (typeof payload.nbf === "number" && payload.nbf > now + 60) return false;
+  if (typeof payload.iat === "number" && payload.iat > now + 300) return false;
+  return true;
+}
+
 async function verifyProjectNumberToken(token: string, projectNumber: string): Promise<boolean> {
   const header = decodePart(token.split(".")[0] || "");
   const payload = decodePart(token.split(".")[1] || "");
   if (!header || !payload) return false;
   if (String(payload.iss) !== CHAT_ISSUER) return false;
   if (String(payload.aud) !== projectNumber) return false;
-  if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) return false;
+  if (!validTimes(payload)) return false;
 
   const kid = String(header.kid || "");
   const certs = await getX509Certs();
@@ -72,9 +80,10 @@ async function verifyAppUrlToken(token: string, audienceUrl: string): Promise<bo
   const header = decodePart(parts[0] || "");
   const payload = decodePart(parts[1] || "");
   if (!header || !payload) return false;
-  if (payload.email && String(payload.email) !== CHAT_ISSUER) return false;
+  if (String(payload.email) !== CHAT_ISSUER) return false;
+  if (!["accounts.google.com", "https://accounts.google.com"].includes(String(payload.iss))) return false;
   if (String(payload.aud) !== audienceUrl) return false;
-  if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) return false;
+  if (!validTimes(payload)) return false;
 
   const kid = String(header.kid || "");
   const keys = await getOidcJwks();
@@ -86,7 +95,7 @@ async function verifyAppUrlToken(token: string, audienceUrl: string): Promise<bo
 
 /** Verify Google Chat Authorization bearer token. */
 export async function verifyGoogleChatBearer(authHeader: string | undefined): Promise<boolean> {
-  if (envBool("SWARM_GOOGLE_CHAT_SKIP_VERIFY")) return true;
+  if (process.env.NODE_ENV !== "production" && envBool("SWARM_GOOGLE_CHAT_SKIP_VERIFY")) return true;
 
   const audienceUrl = envString("SWARM_GOOGLE_CHAT_AUDIENCE_URL");
   const projectNumber = envString("SWARM_GOOGLE_CHAT_PROJECT_NUMBER");

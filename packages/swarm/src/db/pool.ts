@@ -2,8 +2,10 @@ import pg from "pg";
 
 // Single shared connection pool. Config comes from DATABASE_URL (preferred) or
 // discrete PG* vars, defaulting to the docker-compose Postgres on localhost.
-const connectionString =
-  process.env.DATABASE_URL || "postgres://swarm:swarm@localhost:5432/swarm";
+if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required when NODE_ENV=production");
+}
+const connectionString = process.env.DATABASE_URL || "postgres://swarm:swarm@localhost:5432/swarm";
 
 export const pool = new pg.Pool({
   connectionString,

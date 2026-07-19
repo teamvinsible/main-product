@@ -1,18 +1,6 @@
 import crypto from "node:crypto";
 import { envList, envString } from "../config/env-schema.js";
 
-export function verifyTelegramSecret(header: string | undefined): boolean {
-  const secret = envString("SWARM_TELEGRAM_WEBHOOK_SECRET");
-  if (!secret) return true;
-  return header === secret;
-}
-
-export function isTelegramUserAllowed(userId: number | string): boolean {
-  const allowed = envList("SWARM_TELEGRAM_ALLOWED_USERS");
-  if (!allowed.length) return true;
-  return allowed.includes(String(userId));
-}
-
 export function verifyGitHubSignature(payload: string, signature: string | undefined): boolean {
   const secret = envString("SWARM_GITHUB_WEBHOOK_SECRET");
   if (!secret) return false;

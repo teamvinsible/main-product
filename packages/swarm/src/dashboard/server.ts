@@ -11,7 +11,7 @@ import {
   getPromptOverrides, upsertPrompt, deletePrompt, updateProjectGitBinding,
   updateProjectDeployBinding, getDeployments, upsertProject, upsertRun, insertLogs,
   getOpenQuestions, getQuestions, resolveQuestion, getQuestion,
-  getChatMessages, addChatMessage,
+  getChatMessages, addChatMessage, listNotifications, markNotificationsRead,
 } from "../db/store.js";
 import { looksLikeSecretValue } from "../utils/env-scope.js";
 import { DEFAULT_PROMPTS, promptCatalog } from "../prompts/prompt-store.js";
@@ -24,6 +24,7 @@ import { recordChatArtifact } from "../pipeline/chat.js";
 import { buildDockerRunArgs, sandboxConfigFromEnv } from "../sandbox.js";
 import { isWorkspaceRoot } from "../utils/workspace-paths.js";
 import { readWorkSpec, buildWorkSpec } from "../harness/work-spec.js";
+import { writeProposal } from "../routing/proposals.js";
 import type { FlowStep } from "../types.js";
 import { configuredGitProfiles, normalizeGitProfile, gitProfileEnvName } from "../git/credentials.js";
 import {
@@ -32,7 +33,6 @@ import {
 } from "../deploy/credentials.js";
 import { handleGitHubWebhook } from "../webhooks/github.js";
 import { handleGoogleChatWebhook } from "../webhooks/google-chat.js";
-import { handleTelegramWebhook } from "../webhooks/telegram.js";
 import { redactSecrets, scrubSecretsFromEnv } from "../utils/env-scope.js";
 
 const MIME: Record<string, string> = {
@@ -174,7 +174,8 @@ export class DashboardServer {
       // request must present the token via header, ?token=, or the cookie we
       // pin on first tokened load. Loopback default skips this.
       // Webhooks use their own secrets — exempt from dashboard token.
-      const isWebhook = url.pathname.startsWith("/api/webhooks/");
+      const isWebhook = url.pathname === "/api/webhooks/github"
+        || url.pathname === "/api/webhooks/google-chat";
       if (this.enforceToken && !isWebhook) {
         if (!this.tokenValid(this.extractToken(req, url))) {
           res.writeHead(401, { "Content-Type": "application/json" });
@@ -191,7 +192,7 @@ export class DashboardServer {
 
       // CSRF: reject state-changing requests coming from a foreign origin. A
       // same-origin fetch sends a matching Origin; a malicious page's does not.
-      // Webhooks (Telegram/GitHub) are server-to-server — no browser Origin.
+      // Webhooks are server-to-server — no browser Origin.
       if (req.method === "POST" && origin && !this.allowedOrigins.has(origin) && !isWebhook) {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Forbidden: cross-origin request rejected." }));
@@ -297,12 +298,6 @@ export class DashboardServer {
     req.on("end", () => {
       void (async () => {
         try {
-          if (pathname === "/api/webhooks/telegram") {
-            const result = await handleTelegramWebhook(body, req.headers, (args) => this.spawnRun(args));
-            res.writeHead(result.status, { "Content-Type": "application/json" });
-            res.end(result.body);
-            return;
-          }
           if (pathname === "/api/webhooks/github") {
             const result = handleGitHubWebhook(body, req.headers, (args) => this.spawnRun(args));
             res.writeHead(result.status, { "Content-Type": "application/json" });
@@ -353,8 +348,16 @@ export class DashboardServer {
         if (pathname === "/api/project/deploy") return this.saveProjectDeploy(payload, res);
         if (pathname === "/api/prompts") return this.savePrompt(payload, res);
         if (pathname === "/api/prompts/reset") return this.resetPrompt(payload, res);
+        if (pathname === "/api/skip") return this.skipAgent(payload, res);
         if (pathname === "/api/questions/answer") return this.answerQuestion(payload, res);
         if (pathname === "/api/chat") return this.sendChat(payload, res);
+        if (pathname === "/api/notifications/read") {
+          const ids = Array.isArray(payload.ids)
+            ? payload.ids.filter((id): id is string => typeof id === "string").slice(0, 100)
+            : undefined;
+          const project = typeof payload.project === "string" ? payload.project : undefined;
+          return this.json(res, { ok: true, updated: await markNotificationsRead(ids, project) });
+        }
         if (pathname === "/api/terminal/start") return this.startTerminal(payload, res);
         if (pathname === "/api/terminal/send") return this.sendTerminal(payload, res);
         if (pathname === "/api/terminal/stop") return this.stopTerminal(payload, res);
@@ -688,6 +691,53 @@ export class DashboardServer {
     res.end(JSON.stringify({ ok: true, name: project, pid: child.pid }));
   }
 
+  private async skipAgent(payload: Record<string, unknown>, res: http.ServerResponse) {
+    const project = String(payload.project || "").trim();
+    const agentId = String(payload.agentId || "").trim();
+    if (!project || !agentId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "project and agentId are required." }));
+      return;
+    }
+
+    const AGENT_PHASES: Record<string, string[]> = {
+      research:    ["research"],
+      product:     ["product", "scoping"],
+      brand:       ["branding", "design"],
+      social:      ["marketing"],
+      email:       ["marketing"],
+      engineering: ["architecture", "development", "devops", "deployment"],
+      review:      ["qa", "seo", "analytics"],
+    };
+
+    const phases = AGENT_PHASES[agentId];
+    if (!phases) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: `Unknown agent: ${agentId}` }));
+      return;
+    }
+
+    const workspaceDir = path.join(this.workspaceRoot, project);
+    const skipped: string[] = [];
+    for (const phase of phases) {
+      try {
+        writeProposal(workspaceDir, {
+          action: "skip",
+          phase: phase as import("../types.js").Phase,
+          reason: `Skipped by user from the dashboard (agent: ${agentId})`,
+          proposedBy: "orchestrator",
+        });
+        skipped.push(phase);
+      } catch {
+        // phase not in library — silently skip
+      }
+    }
+
+    logSystem(`UI skipped agent "${agentId}" (phases: ${skipped.join(", ")}) for project "${project}"`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, agentId, skipped }));
+  }
+
   // Resume the latest failed/running work order for a project from the first
   // incomplete phase/agent.
   private async startResume(payload: Record<string, unknown>, res: http.ServerResponse) {
@@ -753,8 +803,18 @@ export class DashboardServer {
     }
 
     const sourceEntry = path.resolve(here, "..", "index.ts");
-    const tsxCli = path.join(this.projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
-    if (fs.existsSync(sourceEntry) && fs.existsSync(tsxCli)) {
+    // tsx may be hoisted to a parent node_modules in a monorepo — walk up to find it.
+    const tsxRelPath = path.join("node_modules", "tsx", "dist", "cli.mjs");
+    let searchDir = this.projectRoot;
+    let tsxCli = "";
+    for (let i = 0; i < 4; i++) {
+      const candidate = path.join(searchDir, tsxRelPath);
+      if (fs.existsSync(candidate)) { tsxCli = candidate; break; }
+      const parent = path.dirname(searchDir);
+      if (parent === searchDir) break;
+      searchDir = parent;
+    }
+    if (fs.existsSync(sourceEntry) && tsxCli) {
       return { command: process.execPath, args: [tsxCli, sourceEntry] };
     }
 
@@ -1606,6 +1666,14 @@ export class DashboardServer {
         const all = url.searchParams.get("all") === "1";
         const list = (all && proj) ? await getQuestions(proj) : await getOpenQuestions(proj);
         return this.json(res, await Promise.all(list.map((q) => this.enrichQuestion(q))));
+      }
+      if (p === "/api/notifications") {
+        const unreadOnly = url.searchParams.get("unread") === "1" || url.searchParams.get("unread") === "true";
+        const notifications = await listNotifications({ project: requested || undefined, unreadOnly });
+        return this.json(res, {
+          notifications,
+          unread: notifications.filter((item) => !item.readAt).length,
+        });
       }
       if (p === "/api/chat") {
         // The interactive project chat thread (user turns + swarm answers/acks),

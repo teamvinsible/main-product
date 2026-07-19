@@ -1,0 +1,48 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/dashboard
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/dashboard/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/dashboard.html
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/login
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/login.html
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/signup
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/signup.html
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/auth/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/spine
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/spine/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/intake
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/files/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+/files
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet

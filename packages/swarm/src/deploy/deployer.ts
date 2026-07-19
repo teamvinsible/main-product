@@ -11,14 +11,12 @@ import { scrubSecrets } from "./exec.js";
 import type { DeployAdapter, DeployContext, DeployResult, DeployTarget } from "./types.js";
 import { vercelAdapter } from "./adapters/vercel.js";
 import { digitaloceanAdapter } from "./adapters/digitalocean.js";
-import { doDropletAdapter } from "./adapters/do-droplet.js";
 import { gcpAdapter } from "./adapters/gcp.js";
 import { awsAdapter } from "./adapters/aws.js";
 
 const ADAPTERS: Record<DeployProvider, DeployAdapter> = {
   vercel: vercelAdapter,
   digitalocean: digitaloceanAdapter,
-  "do-droplet": doDropletAdapter,
   gcp: gcpAdapter,
   aws: awsAdapter,
 };
