@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { BrandLoader } from "../components/BrandLoader";
 import { useAuth } from "./AuthProvider";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -8,7 +9,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!ready) {
     return (
       <div className="auth-loading">
-        <p>Loading…</p>
+        <BrandLoader label="Signing you in…" />
       </div>
     );
   }

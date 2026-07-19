@@ -21,9 +21,11 @@ const ICONS: Record<string, typeof IconSearch> = {
   research: IconSearch,
   product: IconBox,
   brand: IconPalette,
+  design: IconPalette,
   social: IconChat,
   email: IconMail,
   engineering: IconCode,
+  eng: IconCode,
   review: IconCheck,
 };
 
@@ -32,14 +34,26 @@ const LABELS: Record<string, string> = {
   research: "Research",
   product: "Product",
   brand: "Brand",
+  design: "Design",
   social: "Social",
   email: "Email",
   engineering: "Engineering",
+  eng: "Engineering",
   review: "Review",
 };
 
 /** Prefer a stable ring order when several domains are present */
-const RING_ORDER = ["research", "product", "brand", "social", "email", "engineering", "review"];
+const RING_ORDER = [
+  "research",
+  "product",
+  "brand",
+  "design",
+  "social",
+  "email",
+  "engineering",
+  "eng",
+  "review",
+];
 
 function isEngaged(signal: SignalState) {
   return signal === "active" || signal === "revision" || signal === "done";
@@ -190,7 +204,10 @@ export function OrchestratorHub({
       touched.add(revisionLoop.to);
     }
 
-    const visible = agents.filter((a) => isEngaged(a.signal) || touched.has(a.id));
+    // Mediator is always the hub center — keep it out of the satellite ring.
+    const visible = agents.filter(
+      (a) => a.id !== "mediator" && (isEngaged(a.signal) || touched.has(a.id)),
+    );
     const positions = layoutPositions(
       visible.map((a) => a.id),
       canvas,

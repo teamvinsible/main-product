@@ -18,6 +18,7 @@ import type {
   SpineStage,
 } from "@teamvinsible/shared";
 import { fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
+import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { HealthCard } from "../components/HealthCard";
 import { OrchestratorHub } from "../components/OrchestratorHub";
@@ -151,7 +152,7 @@ function BentoItem({
             aria-label={`Drag ${label} to rearrange`}
             title={`Drag ${label}`}
           >
-            <span aria-hidden>Ã¢Â Â¿</span>
+            <span aria-hidden>⠿</span>
           </button>
           <button
             type="button"
@@ -160,7 +161,7 @@ function BentoItem({
             aria-label={`Move ${label} earlier`}
             title="Move earlier"
           >
-            Ã¢â€ â€˜
+            ↑
           </button>
           <button
             type="button"
@@ -169,7 +170,7 @@ function BentoItem({
             aria-label={`Move ${label} later`}
             title="Move later"
           >
-            Ã¢â€ â€œ
+            ↓
           </button>
         </div>
       ) : null}
@@ -470,7 +471,7 @@ export function SpinePage() {
   if (!spine) {
     return (
       <div className="page-state card">
-        <p className="muted">Connecting to swarmÃ¢â‚¬Â¦</p>
+        <BrandLoader label="Connecting to your crew…" />
       </div>
     );
   }
@@ -500,7 +501,7 @@ export function SpinePage() {
                     <Link to={`/dashboard/${encodeURIComponent(p.id || p.name)}`}>{p.name}</Link>
                     <span className="muted">
                       {p.status}
-                      {p.phase ? ` Ã‚Â· ${p.phase}` : ""}
+                      {p.phase ? ` · ${p.phase}` : ""}
                     </span>
                   </li>
                 ))}
@@ -593,7 +594,7 @@ export function SpinePage() {
                     className={`stage-step ${cls}${previewHref ? " is-linked" : ""}`}
                     role="listitem"
                   >
-                    <span className="n">{i < stageIndex ? "Ã¢Å“â€œ" : s.num}</span>
+                    <span className="n">{i < stageIndex ? "✓" : s.num}</span>
                     {previewHref ? (
                       <a
                         href={previewHref}
@@ -601,7 +602,7 @@ export function SpinePage() {
                         rel="noopener noreferrer"
                         className="stage-label-full stage-open-link"
                       >
-                        {s.label} Ã¢â€ â€”
+                        {s.label} ↗
                       </a>
                     ) : (
                       <span className="stage-label-full">{s.label}</span>
@@ -665,7 +666,8 @@ export function SpinePage() {
             <div>
               <p className="orch-kicker">Orchestrator</p>
               <h2 className="orch-title">
-                Mediator coordinating {spine.agents.length} domain agents
+                Mediator coordinating{" "}
+                {spine.agents.filter((a) => a.id !== "mediator").length} domain agents
               </h2>
             </div>
             <div className="orch-head-actions">
@@ -673,7 +675,7 @@ export function SpinePage() {
                 {spine.live ? (
                   <>
                     <span className="live-dot" />
-                    Live Ã‚Â· {formatStatusLabel(spine.project.status)}
+                    Live · {formatStatusLabel(spine.project.status)}
                   </>
                 ) : (
                   <span className="muted">{formatStatusLabel(spine.project.status)}</span>
@@ -688,6 +690,7 @@ export function SpinePage() {
           <OrchestratorHub
             agents={spine.agents}
             revisionLoop={spine.revisionLoop}
+            dataFlows={spine.dataFlows}
           />
 
           <div className="orch-legend">
@@ -766,7 +769,7 @@ export function SpinePage() {
                                 <span className={`spec-badge ${b.cls}`}>{b.label}</span>
                                 <span className="muted">
                                   {spec.owner}
-                                  {spec.updatedAt ? ` Ã‚Â· ${spec.updatedAt}` : ""}
+                                  {spec.updatedAt ? ` · ${spec.updatedAt}` : ""}
                                 </span>
                               </span>
                             </span>
@@ -798,10 +801,10 @@ export function SpinePage() {
                             </span>
                             <div className="decision-body">
                               <div className="decision-title">
-                                Decision {d.number} Ã‚Â· {d.title}
+                                Decision {d.number} · {d.title}
                               </div>
                               <div className="decision-meta">
-                                {d.at} Ã‚Â· {d.author}
+                                {d.at} · {d.author}
                               </div>
                             </div>
                             <span className={`decision-status status-${d.status}`}>
@@ -846,7 +849,7 @@ export function SpinePage() {
         <div className="tab-pane">
           {bottomTab === "activity" && (
             spine.activity.length === 0 ? (
-              <p className="muted" style={{ fontSize: 13 }}>Waiting for agent activityÃ¢â‚¬Â¦</p>
+              <p className="muted" style={{ fontSize: 13 }}>Waiting for agent activity…</p>
             ) : (
               <ActivityTerminal items={spine.activity.slice(0, 10)} compact />
             )
@@ -861,7 +864,7 @@ export function SpinePage() {
                   <li key={item.id}>
                     <span className="next-compact-label">{item.label}</span>
                     <span className="muted">
-                      {item.owner} Ã‚Â· {item.eta}
+                      {item.owner} · {item.eta}
                     </span>
                   </li>
                 ))}
@@ -896,7 +899,7 @@ export function SpinePage() {
                   <span className="status-dot attention" />
                   <span className="focus-list-copy">
                     <strong>{spec.title}</strong>
-                    <span>{spec.owner} Ã‚Â· {spec.updatedAt}</span>
+                    <span>{spec.owner} · {spec.updatedAt}</span>
                   </span>
                   <span className="focus-list-action">Review</span>
                 </button>
