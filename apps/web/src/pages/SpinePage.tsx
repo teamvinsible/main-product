@@ -1,4 +1,4 @@
-import { Button, Select } from "antd";
+import { Button, Modal, Select } from "antd";
 import {
   useCallback,
   useEffect,
@@ -18,7 +18,7 @@ import type {
   SpineStage,
   WorkspaceFileCard,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, skipAgent, startPreview, subscribeSpine } from "../api";
+import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, restartRun, skipAgent, startPreview, subscribeSpine } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -314,6 +314,7 @@ export function SpinePage() {
   const [shipHighlight, setShipHighlight] = useState(false);
   const shippedSeenRef = useRef<boolean | null>(null);
   const [skipBusy, setSkipBusy] = useState(false);
+  const [restartBusy, setRestartBusy] = useState(false);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -478,6 +479,33 @@ export function SpinePage() {
       setPublishBusy(false);
     }
   }, [spine?.project]);
+
+  const onRestartRun = useCallback(() => {
+    if (!spine?.project?.id || restartBusy) return;
+    const projectId = spine.project.id;
+    const title = spine.project.title;
+    Modal.confirm({
+      title: "Stop & restart this run?",
+      content: `Nexus will stop the current crew for “${title}” and start again from your brief.`,
+      okText: "Stop & restart",
+      okButtonProps: { danger: true },
+      cancelText: "Keep going",
+      onOk: async () => {
+        setRestartBusy(true);
+        setError(null);
+        try {
+          await restartRun(projectId);
+          const next = await fetchSpine(projectId, { force: true });
+          setSpine(next);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          throw err;
+        } finally {
+          setRestartBusy(false);
+        }
+      },
+    });
+  }, [spine?.project?.id, spine?.project?.title, restartBusy]);
 
   useEffect(() => {
     if (isMockMode()) {
@@ -959,6 +987,16 @@ export function SpinePage() {
               })}
             </div>
             <div className="layout-actions">
+              <Button
+                size="small"
+                danger
+                loading={restartBusy}
+                disabled={!spine.project?.id}
+                onClick={onRestartRun}
+                className="brief-restart-btn"
+              >
+                Stop & restart
+              </Button>
               <Button
                 type={layoutEditing ? "primary" : "default"}
                 size="small"

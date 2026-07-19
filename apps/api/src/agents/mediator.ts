@@ -21,6 +21,7 @@ import {
   activityFirstName,
   activityPhaseDone,
   activityPhaseStart,
+  activityRestarted,
 } from "../orchestrator/activity-copy";
 import { baseCrewAgents, CREW_PHASES } from "../orchestrator/phases";
 
@@ -219,6 +220,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     title: string;
     brief: string;
     runId: string;
+    restarted?: boolean;
   }): Promise<MediatorState> {
     const now = new Date().toISOString();
     const displayName = (input.displayName || "").trim();
@@ -230,6 +232,19 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       agentRole: p.agentId,
       phase: p.phase,
     }));
+
+    const openingTail: ActivityItem[] = input.restarted
+      ? [
+          {
+            id: crypto.randomUUID(),
+            at: now,
+            message: activityRestarted(name, input.title),
+            kind: "gate",
+            agent: "Nexus",
+            phase: "restart",
+          },
+        ]
+      : [];
 
     this.setState({
       ...this.state,
@@ -253,6 +268,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
           agent: "Nexus",
           phase: "intake",
         },
+        ...openingTail,
       ],
       startedAt: now,
       updatedAt: now,
@@ -281,7 +297,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       return this.state;
     }
 
-    await this.schedule(2, "advancePhase", {});
+    await this.schedule(2, "advancePhase", { runId: input.runId });
     return this.state;
   }
 
@@ -310,7 +326,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
   @callable()
   async schedulePhases(): Promise<MediatorState> {
     if (this.state.status === "running") {
-      await this.schedule(2, "advancePhase", {});
+      await this.schedule(2, "advancePhase", { runId: this.state.runId });
     }
     return this.state;
   }
@@ -327,7 +343,11 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     path: string;
     done: boolean;
     filesWritten?: string[];
+    runId?: string;
   }): Promise<MediatorState> {
+    if (input.runId && this.state.runId && input.runId !== this.state.runId) {
+      return this.state;
+    }
     const now = new Date().toISOString();
     const nextIndex = input.done ? input.phaseIndex : input.phaseIndex + 1;
     const next = input.done ? null : PHASES[nextIndex] || null;
@@ -467,11 +487,17 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
   }
 
   @callable()
-  async advancePhase(_payload: Record<string, never> = {}): Promise<MediatorState> {
+  async advancePhase(payload: { runId?: string | null } = {}): Promise<MediatorState> {
+    if (payload.runId && this.state.runId && payload.runId !== this.state.runId) {
+      return this.state;
+    }
+    if (this.state.status !== "running") return this.state;
+
     const idx = this.state.phaseIndex;
     if (idx < 0 || idx >= PHASES.length) return this.state;
 
     const current = PHASES[idx]!;
+    const runId = this.state.runId;
     await this.announcePhaseStart({
       phase: current.phase,
       label: current.label,
@@ -560,6 +586,11 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       artifactSummary = `${current.label} (partial): ${err instanceof Error ? err.message : String(err)}`;
     }
 
+    // Drop work from a previous run if the user restarted while this phase was in flight.
+    if (runId && this.state.runId && runId !== this.state.runId) {
+      return this.state;
+    }
+
     const nextIndex = idx + 1;
     const done = nextIndex >= PHASES.length;
     await this.applyPhaseResult({
@@ -572,6 +603,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       path: artifactPath,
       filesWritten,
       done,
+      runId: runId || undefined,
     });
 
     if (done && this.env.WORKSPACES) {
@@ -629,7 +661,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     }
 
     if (!done) {
-      await this.schedule(3, "advancePhase", {});
+      await this.schedule(3, "advancePhase", { runId });
     }
     return this.state;
   }

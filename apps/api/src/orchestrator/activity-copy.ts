@@ -141,6 +141,13 @@ export function activityBootstrapWorkflow(name: string): string {
   );
 }
 
+export function activityRestarted(name: string, title: string): string {
+  return say(
+    name,
+    `Stopping the current crew and restarting “${title}” from the top — fresh specialists, same brief.`,
+  );
+}
+
 export function activityPhaseStart(phase: string, name: string, title: string): string {
   const copy = PHASE_COPY[phase];
   if (copy) return copy.start(name, title);

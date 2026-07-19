@@ -263,7 +263,7 @@ function LegalPage({ eyebrow, title, route, intro, sections }: LegalPageProps) {
       <footer className="legal-footer">
         <BrandLogo />
         <span>
-          © {new Date().getFullYear()} Teamvinsible · Made with ❤️ &amp; AI by Froundrylabs in{" "}
+          © {new Date().getFullYear()} Teamvinsible · Made with ❤️ &amp; AI by Foundrylabs in{" "}
           <img
             className="footer-flag"
             src="/flag-india.svg"
