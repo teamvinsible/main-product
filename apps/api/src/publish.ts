@@ -209,14 +209,14 @@ export async function publishProject(
   if (!finalized.meta.changes) throw new Error("Publish ownership changed during deployment");
 
   let dispatch: PublishResult["dispatch"] = "r2-edge";
-  let message = `Serving at /p/${slug} and ${url} (configure DNS *.${env.PLATFORM_HOST} → this Worker).`;
+  let message = `Live at ${url}`;
   if (env.CF_ACCOUNT_ID && env.CF_API_TOKEN && env.DISPATCH_NAMESPACE) {
     try {
       await uploadUserWorker(env, slug);
       dispatch = "workers-for-platforms";
-      message = `Deployed user Worker “${slug}” into dispatch namespace “${env.DISPATCH_NAMESPACE}”.`;
+      message = `Live at ${url} (Workers for Platforms)`;
     } catch (error) {
-      message = `R2 edge publish succeeded; Workers for Platforms upload was skipped: ${error instanceof Error ? error.message : String(error)}`;
+      message = `Live at ${url} (R2 edge; WfP upload skipped: ${error instanceof Error ? error.message : String(error)})`;
     }
   }
 
@@ -224,12 +224,15 @@ export async function publishProject(
 }
 
 async function uploadUserWorker(env: Env, slug: string): Promise<void> {
+  // Optional WfP registration. Content is served by the platform Worker on
+  // {slug}.PLATFORM_HOST via R2 — this script is only a namespace placeholder.
   const script = `
 export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-    const platform = ${JSON.stringify(`https://${env.PLATFORM_HOST}`)};
-    return Response.redirect(platform + "/p/" + ${JSON.stringify(slug)} + url.pathname.replace(/^\\/?/, "/").replace(/^\\/$/, "/") + url.search, 302);
+  async fetch() {
+    return new Response("Teamvinsible app — open https://${slug}.${env.PLATFORM_HOST}/", {
+      status: 200,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
   }
 };`;
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/workers/dispatch/namespaces/${env.DISPATCH_NAMESPACE}/scripts/${slug}`;
@@ -252,12 +255,10 @@ export async function servePublished(
   env: Env,
   slug: string,
   requestPath: string,
-  options: { pathServing?: boolean } = {},
 ): Promise<Response | null> {
   if (!env.WORKSPACES) return null;
   let rel = requestPath.replace(/^\/+/, "");
   if (!rel || rel.endsWith("/")) rel = `${rel}index.html`;
-  if (rel.startsWith(`p/${slug}/`)) rel = rel.slice(`p/${slug}/`.length);
   if (rel.startsWith(`${slug}/`)) rel = rel.slice(slug.length + 1);
 
   // Always serve the platform brand mark for generated apps.
@@ -281,19 +282,11 @@ export async function servePublished(
   if (!obj && !rel.includes(".")) obj = await env.WORKSPACES.get(`${prefix}index.html`);
   if (!obj) return null;
   const headers = new Headers();
-  const contentType = obj.httpMetadata?.contentType || guessContentType(rel);
+  let contentType = obj.httpMetadata?.contentType || guessContentType(rel);
+  if (contentType === "text/html") contentType = "text/html; charset=utf-8";
   headers.set("Content-Type", contentType);
   headers.set("Cache-Control", "public, max-age=300, s-maxage=600");
   headers.set("X-Content-Type-Options", "nosniff");
-  if (options.pathServing) {
-    // /p/{slug} shares the platform origin with the API (and possibly the web
-    // app), and the content is user-generated. `sandbox` without
-    // `allow-same-origin` runs it in an opaque origin so it cannot touch
-    // platform cookies/localStorage; ACAO lets its module scripts/fetches load
-    // relative assets from that opaque origin.
-    headers.set("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-popups allow-modals");
-    headers.set("Access-Control-Allow-Origin", "*");
-  }
 
   // Inject platform favicon link into HTML when the generated app omitted it.
   if (rel.endsWith(".html") || rel === "index.html" || contentType.includes("text/html")) {

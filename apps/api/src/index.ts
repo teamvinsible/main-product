@@ -385,7 +385,7 @@ export default {
     const sandboxProxied = await maybeProxySandbox(request, env);
     if (sandboxProxied) return sandboxProxied;
 
-    // Public published apps: {slug}.PLATFORM_HOST or /p/{slug}/...
+    // Public published apps: {slug}.PLATFORM_HOST only.
     const hostSlug = slugFromHost(url.hostname, env.PLATFORM_HOST);
     if (hostSlug) {
       // Prefer WfP dispatcher when available
@@ -403,20 +403,12 @@ export default {
       return new Response("App not found", { status: 404 });
     }
 
-    const pubMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
-    if (pubMatch) {
-      const slug = decodeURIComponent(pubMatch[1]!);
-      const rest = pubMatch[2];
-      // Without a trailing slash, relative assets like styles.css resolve to /p/styles.css.
-      if (rest == null || rest === "") {
-        const target = new URL(request.url);
-        target.pathname = `/p/${encodeURIComponent(slug)}/`;
-        return Response.redirect(target.toString(), 308);
-      }
-      const published = await servePublished(env, slug, rest, { pathServing: true });
-      if (published) return published;
-      if (isFaviconPath(rest)) return platformFaviconResponse();
-      return new Response("App not found", { status: 404 });
+    // Legacy /p/{slug} bookmarks → canonical subdomain (no dual hosting).
+    const legacyPub = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
+    if (legacyPub) {
+      const slug = decodeURIComponent(legacyPub[1]!);
+      const rest = legacyPub[2] && legacyPub[2] !== "/" ? legacyPub[2] : "/";
+      return Response.redirect(`https://${slug}.${env.PLATFORM_HOST}${rest}${url.search}`, 308);
     }
 
     if (pathname === "/api/health") {

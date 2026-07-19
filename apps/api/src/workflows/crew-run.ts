@@ -3,6 +3,7 @@ import type { Env } from "../env";
 import { getDomainAgent } from "../agents/domain-agent";
 import { getMediator } from "../agents/mediator";
 import { d1CreateNotification, d1UpdateProject, d1UpdateRun } from "../d1";
+import { CREW_PHASES } from "../orchestrator/phases";
 
 export type CrewRunParams = {
   projectId: string;
@@ -13,25 +14,14 @@ export type CrewRunParams = {
   brief: string;
 };
 
-const PHASES = [
-  { stage: "drafting" as const, phase: "research", agentId: "research", label: "Research brief" },
-  { stage: "drafting" as const, phase: "product", agentId: "product", label: "Product spec" },
-  { stage: "cross-review" as const, phase: "design", agentId: "design", label: "Design review" },
-  { stage: "cross-review" as const, phase: "eng", agentId: "eng", label: "Engineering plan" },
-  { stage: "consolidating" as const, phase: "lead", agentId: "mediator", label: "Lead completeness gate" },
-  { stage: "ready" as const, phase: "preview", agentId: "eng", label: "Ship live" },
-];
+const PHASES = CREW_PHASES;
 
 /**
  * Durable multi-step crew run: each phase is a Workflow step calling a DomainAgent.
  *
- * Agent execution and state application are separate steps so a retry of the
- * apply step never re-runs the (expensive, LLM-driven) agent work, and each
- * apply is idempotent: applyPhaseResult is keyed by phase, the D1 updates are
- * absolute values, and the completion notification uses a deterministic id.
- *
- * Lead phase owns the workspace completeness gate (required files present and
- * linked) before Ship/publish.
+ * Agency order: Strategy → Design → Architecture → Backend → Frontend → QA →
+ * DevOps → Launch → Growth. DevOps owns the workspace completeness gate before
+ * Launch; publish runs once after the final Growth phase.
  */
 export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
   async run(event: WorkflowEvent<CrewRunParams>, step: WorkflowStep) {
@@ -45,13 +35,7 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
         `phase:${phase.phase}`,
         { retries: { limit: 2, delay: "5 seconds", backoff: "linear" } },
         async () => {
-          // Lead phase must run as the Mediator completeness gate, not product.
-          const role =
-            phase.phase === "lead"
-              ? "mediator"
-              : phase.agentId === "mediator"
-                ? "product"
-                : phase.agentId;
+          const role = phase.agentId;
           const agent = await getDomainAgent(this.env, params.projectId, role);
           const phaseResult = await agent.runPhase({
             role,
@@ -61,8 +45,13 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
             brief: params.brief,
             phase: phase.phase,
             label: phase.label,
+            briefHint: phase.briefHint,
           });
-          return { summary: phaseResult.summary, path: phaseResult.path, files: phaseResult.filesWritten.length };
+          return {
+            summary: phaseResult.summary,
+            path: phaseResult.path,
+            filesWritten: phaseResult.filesWritten,
+          };
         },
       );
 
@@ -80,6 +69,7 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
               agentId: phase.agentId,
               summary: result.summary,
               path: result.path,
+              filesWritten: result.filesWritten,
               done,
             });
           }

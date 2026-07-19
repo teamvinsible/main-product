@@ -27,7 +27,7 @@ apps/api (Worker) ────────────────────�
     ├─ DomainAgent DOs (research/product/design/eng) │
     ├─ CrewRun Workflow (durable phases)        │
     └─ Workers for Platforms / R2 edge publish  │
-         *.teamvinsible.com + /p/{slug}         │
+         *.teamvinsible.com                     │
 ```
 
 ## Domain mapping (swarm concept → CF)
@@ -40,7 +40,7 @@ apps/api (Worker) ────────────────────�
 | Postgres runs/logs | D1 tables |
 | Dashboard `/api/*` | Worker routes (auth-gated) |
 | Docker sandbox | Cloudflare Sandbox |
-| VPS Caddy publish | R2 edge `/p/{slug}` + Workers for Platforms |
+| VPS Caddy publish | R2 edge on `{slug}.teamvinsible.com` (+ optional Workers for Platforms) |
 | doctl / harness-doctl | Optional skill for **customer** backends, not platform hosting |
 
 ## Phased delivery
@@ -68,7 +68,7 @@ apps/api (Worker) ────────────────────�
 
 ### Phase D — Publish (implemented)
 - `POST /api/publish` copies workspace → R2 `publishes/{slug}/`
-- Public serve: `/p/{slug}` and `{slug}.{PLATFORM_HOST}`
+- Public serve: `{slug}.{PLATFORM_HOST}` only (subdomain)
 - Optional WfP upload when `CF_ACCOUNT_ID` + `CF_API_TOKEN` + `DISPATCHER` are set
 - Spine UI **Publish** action
 
@@ -95,7 +95,7 @@ Teamvinsible uses **DeepSeek only** (`https://api.deepseek.com`, OpenAI-compatib
 - **Run lifecycle**: `POST /api/run` → D1 rows → Mediator bootstrap → CrewRun Workflow (created **only** by `cfStartRun`, instance id = runId). If Workflow creation fails, the Mediator's scheduled phase loop takes over.
 - **Queues**: `teamvinsible-runs` retries 3×, then dead-letters to `teamvinsible-runs-dlq` (create it: `wrangler queues create teamvinsible-runs-dlq`). The DLQ consumer logs and writes a `run.failed` notification.
 - **Retention**: nightly cron (03:17 UTC) prunes `cf_activity` (>30d) and `cf_notifications` (read >90d, all >180d).
-- **Publish**: max 400 files per publish (Worker subrequest cap). Reserved subdomains (`api`, `www`, `admin`, …) cannot be claimed as slugs. `/p/{slug}` responses carry `CSP: sandbox` (opaque origin) because they share the platform origin; `{slug}.PLATFORM_HOST` is origin-isolated by DNS.
+- **Publish**: max 400 files per publish (Worker subrequest cap). Reserved subdomains (`api`, `www`, `admin`, …) cannot be claimed as slugs. Live apps are served only on `{slug}.PLATFORM_HOST` (origin-isolated by DNS).
 - **Previews**: sandbox preview hosts (`{port}-{sandboxId}.PLATFORM_HOST`) are unauthenticated capability URLs (sandbox id derives from the project UUID) and are proxied before the published-app wildcard.
 
 ## Non-goals

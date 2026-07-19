@@ -7,8 +7,15 @@ import type {
   SpineSnapshot,
   SpineStage,
   Workstream,
+  WorkspaceFileCard,
+} from "@teamvinsible/shared";
+import {
+  isArtifactDocPath,
+  isWorkspaceFilePath,
+  workspaceFileTitle,
 } from "@teamvinsible/shared";
 import type { Env } from "../env";
+import { baseCrewAgents, CREW_PHASES } from "../orchestrator/phases";
 
 export type MediatorState = {
   projectId: string;
@@ -23,6 +30,8 @@ export type MediatorState = {
   agents: DomainAgentNode[];
   workstreams: Workstream[];
   specs: SpecCard[];
+  /** Generated app/workspace files (Files tab). */
+  files: WorkspaceFileCard[];
   activity: ActivityItem[];
   previewUrl: string | null;
   sandboxId: string | null;
@@ -30,59 +39,8 @@ export type MediatorState = {
   updatedAt: string;
 };
 
-const PHASES: Array<{ stage: SpineStage; phase: string; agentId: string; label: string }> = [
-  { stage: "drafting", phase: "research", agentId: "research", label: "Research brief" },
-  { stage: "drafting", phase: "product", agentId: "product", label: "Product spec" },
-  { stage: "cross-review", phase: "design", agentId: "design", label: "Design review" },
-  { stage: "cross-review", phase: "eng", agentId: "eng", label: "Engineering plan" },
-  { stage: "consolidating", phase: "lead", agentId: "mediator", label: "Lead completeness gate" },
-  { stage: "ready", phase: "preview", agentId: "eng", label: "Ship live" },
-];
-
-function baseAgents(): DomainAgentNode[] {
-  return [
-    {
-      id: "mediator",
-      label: "Mediator",
-      role: "Coordinator",
-      detail: "Assigns work and gatekeeps stages",
-      signal: "active",
-      swarmRoles: ["lead"],
-    },
-    {
-      id: "research",
-      label: "Research",
-      role: "Discovery",
-      detail: "Clarifies problem and constraints",
-      signal: "standby",
-      swarmRoles: ["researcher"],
-    },
-    {
-      id: "product",
-      label: "Product",
-      role: "Spec",
-      detail: "Owns PRD and acceptance criteria",
-      signal: "standby",
-      swarmRoles: ["pm"],
-    },
-    {
-      id: "design",
-      label: "Design",
-      role: "UX",
-      detail: "Interaction and visual direction",
-      signal: "standby",
-      swarmRoles: ["designer"],
-    },
-    {
-      id: "eng",
-      label: "Engineering",
-      role: "Build",
-      detail: "Implements and previews the app",
-      signal: "standby",
-      swarmRoles: ["engineer"],
-    },
-  ];
-}
+const PHASES = CREW_PHASES;
+const baseAgents = baseCrewAgents;
 
 function isSettledStatus(status: string): boolean {
   const s = status.toLowerCase();
@@ -109,6 +67,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     agents: baseAgents(),
     workstreams: [],
     specs: [],
+    files: [],
     activity: [],
     previewUrl: null,
     sandboxId: null,
@@ -243,14 +202,15 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       status: "running",
       phaseIndex: 0,
       agents: baseAgents().map((a) =>
-        a.id === "mediator" || a.id === "research" ? { ...a, signal: "active" as const } : a,
+        a.id === "mediator" || a.id === "product" ? { ...a, signal: "active" as const } : a,
       ),
       workstreams,
       specs: [],
+      files: [],
       activity: [
         {
           id: crypto.randomUUID(),
-          at: "Just now",
+          at: now,
           message: `Mediator accepted brief for ${input.title}`,
           kind: "gate",
           agent: "Mediator",
@@ -269,7 +229,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
         activity: [
           {
             id: crypto.randomUUID(),
-            at: "Just now",
+            at: now,
             message: "CrewRun Workflow owns phases — domain agents will execute each step",
             kind: "gate",
             agent: "Mediator",
@@ -305,26 +265,63 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     summary: string;
     path: string;
     done: boolean;
+    filesWritten?: string[];
   }): Promise<MediatorState> {
+    const now = new Date().toISOString();
     const nextIndex = input.done ? input.phaseIndex : input.phaseIndex + 1;
     const next = input.done ? null : PHASES[nextIndex] || null;
     const specId = `spec-${input.phase}`;
+    // Planning artifacts always live under artifacts/*.md — never app entrypoints.
+    const docPath = isArtifactDocPath(input.path)
+      ? input.path
+      : `artifacts/${input.phase}.md`;
+
     const specs: SpecCard[] = [
-      ...this.state.specs.filter((s) => s.id !== specId),
+      ...this.state.specs.filter((s) => s.id !== specId && isArtifactDocPath(s.path)),
       {
         id: specId,
         title: input.label,
         status: input.done ? "ready" : "cross-review",
         owner: input.agentId,
-        updatedAt: "Just now",
+        updatedAt: now,
         summary: input.summary,
-        path: input.path,
+        path: docPath,
       },
     ];
+
+    const incomingFiles = (input.filesWritten || []).filter((p) => isWorkspaceFilePath(p));
+    const prevFiles = Array.isArray(this.state.files) ? this.state.files : [];
+    const filesByPath = new Map<string, WorkspaceFileCard>();
+    for (const f of prevFiles) filesByPath.set(f.path, f);
+    // Migrate legacy SpecCards that pointed at app files into the Files list.
+    for (const s of this.state.specs) {
+      if (s.path && isWorkspaceFilePath(s.path)) {
+        filesByPath.set(s.path, {
+          id: `file-${s.path}`,
+          title: workspaceFileTitle(s.path),
+          path: s.path,
+          owner: s.owner,
+          updatedAt: /^\d{4}-\d{2}-\d{2}/.test(s.updatedAt) ? s.updatedAt : now,
+          summary: s.summary,
+        });
+      }
+    }
+    for (const path of incomingFiles) {
+      filesByPath.set(path, {
+        id: `file-${path}`,
+        title: workspaceFileTitle(path),
+        path,
+        owner: input.agentId,
+        updatedAt: now,
+        summary: `${input.label} wrote ${path}`,
+      });
+    }
+    const files = [...filesByPath.values()].sort((a, b) => a.path.localeCompare(b.path));
+
     const activity: ActivityItem[] = [
       {
         id: crypto.randomUUID(),
-        at: "Just now",
+        at: now,
         message: `${input.label} completed (domain agent)`,
         kind: "signal" as const,
       },
@@ -375,10 +372,11 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       stage: input.done ? "ready" : input.stage,
       status: input.done ? "completed" : "running",
       specs,
+      files,
       activity,
       workstreams,
       agents,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     });
 
     if (this.env.DB && this.state.runId) {
@@ -404,13 +402,14 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     const current = PHASES[idx]!;
     let artifactSummary = `${current.label} for “${this.state.title}”.`;
     let artifactPath = `artifacts/${current.phase}.md`;
+    let filesWritten: string[] = [];
 
     try {
       if (this.env.DomainAgent) {
         const { getDomainAgent } = await import("./domain-agent");
         const role =
-          current.phase === "lead"
-            ? "mediator"
+          current.phase === "devops"
+            ? "devops"
             : current.agentId === "mediator"
               ? "product"
               : current.agentId;
@@ -423,12 +422,14 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
           brief: this.state.brief,
           phase: current.phase,
           label: current.label,
+          briefHint: current.briefHint,
         });
         artifactSummary = result.summary;
         artifactPath = result.path;
+        filesWritten = result.filesWritten;
       } else {
         const { runEngineeringBuild, writePhaseArtifact } = await import("../orchestrator/agent-runner");
-        if (current.phase === "lead" || current.phase === "preview") {
+        if (current.phase === "devops") {
           const { leadEnsureWorkspaceReady } = await import("../orchestrator/lead-gate");
           const gate = await leadEnsureWorkspaceReady(this.env, {
             projectId: this.state.projectId,
@@ -438,8 +439,17 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
             allowRebuild: true,
           });
           artifactSummary = gate.summary;
-          artifactPath = "index.html";
-        } else if (current.phase === "eng") {
+          artifactPath = `artifacts/${current.phase}.md`;
+          filesWritten = gate.present.filter((p) => !p.startsWith("artifacts/"));
+          await writePhaseArtifact(this.env, {
+            projectId: this.state.projectId,
+            phase: current.phase,
+            title: this.state.title,
+            brief: `${this.state.brief}\n\n## DevOps gate\n${gate.summary}`,
+            label: current.label,
+            briefHint: current.briefHint,
+          });
+        } else if (current.phase === "eng" || current.phase === "eng-frontend") {
           const build = await runEngineeringBuild(this.env, {
             projectId: this.state.projectId,
             title: this.state.title,
@@ -447,6 +457,16 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
             swarmName: this.state.swarmName,
           });
           artifactSummary = build.summary;
+          artifactPath = `artifacts/${current.phase}.md`;
+          filesWritten = build.filesWritten.filter((p) => !p.startsWith("artifacts/"));
+          await writePhaseArtifact(this.env, {
+            projectId: this.state.projectId,
+            phase: current.phase,
+            title: this.state.title,
+            brief: `${this.state.brief}\n\n## Frontend build\n${build.summary}\n\nFiles: ${build.filesWritten.join(", ")}`,
+            label: current.label,
+            briefHint: current.briefHint,
+          });
         } else {
           artifactSummary = await writePhaseArtifact(this.env, {
             projectId: this.state.projectId,
@@ -454,7 +474,9 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
             title: this.state.title,
             brief: this.state.brief,
             label: current.label,
+            briefHint: current.briefHint,
           });
+          artifactPath = `artifacts/${current.phase}.md`;
         }
       }
     } catch (err) {
@@ -471,6 +493,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       agentId: current.agentId,
       summary: artifactSummary,
       path: artifactPath,
+      filesWritten,
       done,
     });
 
@@ -478,11 +501,28 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       const existing = await this.env.WORKSPACES.head(`workspaces/${this.state.projectId}/index.html`);
       if (!existing) {
         const { scaffoldApp } = await import("../orchestrator/agent-runner");
-        await scaffoldApp(this.env, {
+        const scaffold = await scaffoldApp(this.env, {
           projectId: this.state.projectId,
           title: this.state.title,
           brief: this.state.brief,
           swarmName: this.state.swarmName,
+        });
+        const now = new Date().toISOString();
+        const filesByPath = new Map((this.state.files || []).map((f) => [f.path, f]));
+        for (const path of scaffold.filesWritten.filter((p) => !p.startsWith("artifacts/"))) {
+          filesByPath.set(path, {
+            id: `file-${path}`,
+            title: workspaceFileTitle(path),
+            path,
+            owner: "eng",
+            updatedAt: now,
+            summary: scaffold.summary,
+          });
+        }
+        this.setState({
+          ...this.state,
+          files: [...filesByPath.values()].sort((a, b) => a.path.localeCompare(b.path)),
+          updatedAt: now,
         });
       }
 
@@ -648,6 +688,7 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       agents: [],
       dataFlows: [],
       specs: [],
+      files: [],
       decisions: [],
       dependencies: { nodes: [], edges: [] },
       timeline: [],
@@ -668,6 +709,47 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
   const total = state.workstreams.length || 1;
   const agents = agentsForSpine(state);
   const dataFlows = buildDataFlows(state);
+  const fallbackAt = state.updatedAt || state.startedAt || new Date().toISOString();
+  const coerceAt = (value?: string) =>
+    !value || value === "Just now" || value.toLowerCase() === "just now" ? fallbackAt : value;
+
+  // Split legacy mixed SpecCards into docs vs workspace files.
+  const docs: SpecCard[] = [];
+  const filesByPath = new Map<string, WorkspaceFileCard>();
+  for (const f of state.files || []) {
+    filesByPath.set(f.path, { ...f, updatedAt: coerceAt(f.updatedAt) });
+  }
+  for (const s of state.specs || []) {
+    const card = { ...s, updatedAt: coerceAt(s.updatedAt) };
+    if (s.path && isWorkspaceFilePath(s.path)) {
+      filesByPath.set(s.path, {
+        id: `file-${s.path}`,
+        title: workspaceFileTitle(s.path),
+        path: s.path,
+        owner: s.owner,
+        updatedAt: card.updatedAt,
+        summary: s.summary,
+      });
+      continue;
+    }
+    // Remap legacy eng/lead/preview cards that pointed at index.html back to their md docs.
+    if (s.id.startsWith("spec-") && (!s.path || s.path === "index.html")) {
+      const phase = s.id.slice("spec-".length);
+      docs.push({ ...card, path: `artifacts/${phase}.md` });
+      if (s.path === "index.html") {
+        filesByPath.set("index.html", {
+          id: "file-index.html",
+          title: "index.html",
+          path: "index.html",
+          owner: s.owner,
+          updatedAt: card.updatedAt,
+          summary: s.summary,
+        });
+      }
+      continue;
+    }
+    docs.push(card);
+  }
 
   return {
     empty: false,
@@ -681,13 +763,14 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       stage: state.stage,
       status: state.status,
       createdAt: state.startedAt.slice(0, 10),
-      updatedAt: "Just now",
+      updatedAt: fallbackAt,
     },
     workstreams: state.workstreams,
     agents,
     dataFlows,
-    specs: state.specs,
-    activeSpecId: state.specs[0]?.id,
+    specs: docs,
+    files: [...filesByPath.values()].sort((a, b) => a.path.localeCompare(b.path)),
+    activeSpecId: docs[0]?.id,
     activeQuestion: null,
     decisions: [],
     dependencies: { nodes: [], edges: [] },
@@ -696,7 +779,7 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       label: p.label,
       state: i < state.phaseIndex ? "done" : i === state.phaseIndex ? "current" : "upcoming",
     })),
-    activity: state.activity,
+    activity: state.activity.map((a) => ({ ...a, at: coerceAt(a.at) })),
     health: {
       alignedPct: Math.round((aligned / total) * 100),
       aligned,
@@ -708,7 +791,7 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       .filter((w) => w.status === "queued" || w.status === "in-progress")
       .slice(0, 3)
       .map((w) => ({ id: w.id, label: w.label, owner: w.agentRole, eta: "—" })),
-    specsTotal: state.specs.length,
+    specsTotal: docs.length,
     projects,
     previewUrl: state.previewUrl,
     sandboxId: state.sandboxId,
