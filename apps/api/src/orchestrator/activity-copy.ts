@@ -148,6 +148,13 @@ export function activityRestarted(name: string, title: string): string {
   );
 }
 
+export function activityStopped(name: string, title: string): string {
+  return say(
+    name,
+    `I've paused the crew on “${title}”. Nothing else will run until you restart.`,
+  );
+}
+
 export function activityPhaseStart(phase: string, name: string, title: string): string {
   const copy = PHASE_COPY[phase];
   if (copy) return copy.start(name, title);

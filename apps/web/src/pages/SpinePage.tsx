@@ -18,7 +18,7 @@ import type {
   SpineStage,
   WorkspaceFileCard,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, restartRun, skipAgent, startPreview, subscribeSpine } from "../api";
+import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, restartRun, skipAgent, startPreview, stopRun, subscribeSpine } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -59,7 +59,20 @@ const DEFAULT_BENTO_ORDER: BentoCardId[] = [
   "health",
   "orchestrator",
 ];
-const BENTO_ORDER_STORAGE_KEY = "teamvinsible.dashboard.bento-order.v2";
+/** Pre-rearrange product default — auto-saved copies of this are not user customizations. */
+const LEGACY_DEFAULT_BENTO_ORDER: BentoCardId[] = [
+  "orchestrator",
+  "artifacts",
+  "health",
+  "preview",
+  "focus",
+  "activity",
+];
+const BENTO_ORDER_STORAGE_KEYS = [
+  "teamvinsible.dashboard.bento-order.v1",
+  "teamvinsible.dashboard.bento-order.v2",
+] as const;
+const BENTO_ORDER_STORAGE_KEY = BENTO_ORDER_STORAGE_KEYS[0];
 
 const BENTO_CARD_LABELS: Record<BentoCardId, string> = {
   orchestrator: "Orchestrator",
@@ -70,20 +83,53 @@ const BENTO_CARD_LABELS: Record<BentoCardId, string> = {
   activity: "Activity",
 };
 
+function sameBentoOrder(left: BentoCardId[], right: BentoCardId[]) {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function isValidBentoOrder(saved: unknown): saved is BentoCardId[] {
+  return (
+    Array.isArray(saved) &&
+    saved.length === DEFAULT_BENTO_ORDER.length &&
+    DEFAULT_BENTO_ORDER.every((id) => saved.includes(id))
+  );
+}
+
+function isProductDefaultOrder(order: BentoCardId[]) {
+  return sameBentoOrder(order, DEFAULT_BENTO_ORDER) || sameBentoOrder(order, LEGACY_DEFAULT_BENTO_ORDER);
+}
+
+/** Prefer an explicit user arrangement; otherwise use the current product default. */
 function readSavedBentoOrder(): BentoCardId[] {
   try {
-    const saved = JSON.parse(window.localStorage.getItem(BENTO_ORDER_STORAGE_KEY) || "null");
-    if (
-      Array.isArray(saved) &&
-      saved.length === DEFAULT_BENTO_ORDER.length &&
-      DEFAULT_BENTO_ORDER.every((id) => saved.includes(id))
-    ) {
-      return saved as BentoCardId[];
+    for (const key of BENTO_ORDER_STORAGE_KEYS) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const saved = JSON.parse(raw) as unknown;
+      if (!isValidBentoOrder(saved)) continue;
+      // Ignore auto-saved copies of a product default so new defaults can roll out.
+      if (isProductDefaultOrder(saved)) continue;
+      return saved;
     }
   } catch {
     // Ignore unavailable or stale browser storage and use the product default.
   }
   return DEFAULT_BENTO_ORDER;
+}
+
+function persistBentoOrder(order: BentoCardId[]) {
+  try {
+    if (sameBentoOrder(order, DEFAULT_BENTO_ORDER)) {
+      for (const key of BENTO_ORDER_STORAGE_KEYS) {
+        window.localStorage.removeItem(key);
+      }
+      return;
+    }
+    window.localStorage.setItem(BENTO_ORDER_STORAGE_KEY, JSON.stringify(order));
+    window.localStorage.removeItem("teamvinsible.dashboard.bento-order.v2");
+  } catch {
+    // Layout still works for this session when browser storage is unavailable.
+  }
 }
 
 function swapBentoCards(
@@ -98,10 +144,6 @@ function swapBentoCards(
   const next = [...order];
   [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
   return next;
-}
-
-function sameBentoOrder(left: BentoCardId[], right: BentoCardId[]) {
-  return left.every((id, index) => id === right[index]);
 }
 
 interface BentoItemProps {
@@ -314,6 +356,7 @@ export function SpinePage() {
   const [shipHighlight, setShipHighlight] = useState(false);
   const shippedSeenRef = useRef<boolean | null>(null);
   const [skipBusy, setSkipBusy] = useState(false);
+  const [stopBusy, setStopBusy] = useState(false);
   const [restartBusy, setRestartBusy] = useState(false);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
@@ -330,14 +373,6 @@ export function SpinePage() {
   const spineRef = useRef(spine);
   spineRef.current = spine;
   const closeModal = useCallback(() => setModal(null), []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(BENTO_ORDER_STORAGE_KEY, JSON.stringify(bentoOrder));
-    } catch {
-      // The layout still works for this session when browser storage is unavailable.
-    }
-  }, [bentoOrder]);
 
   useLayoutEffect(() => {
     const items = bentoGridRef.current?.querySelectorAll<HTMLElement>(".bento-item");
@@ -383,6 +418,7 @@ export function SpinePage() {
       if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      persistBentoOrder(next);
       return next;
     });
   }, []);
@@ -412,6 +448,7 @@ export function SpinePage() {
         const nextOrder = swapBentoCards(bentoOrder, draggedCard, target);
         if (!sameBentoOrder(nextOrder, bentoOrder)) {
           setBentoOrder(nextOrder);
+          persistBentoOrder(nextOrder);
           setLayoutAnnouncement(
             `${BENTO_CARD_LABELS[draggedCard]} placed in the ${BENTO_CARD_LABELS[target]} position.`,
           );
@@ -426,6 +463,7 @@ export function SpinePage() {
 
   const resetBentoOrder = useCallback(() => {
     setBentoOrder(DEFAULT_BENTO_ORDER);
+    persistBentoOrder(DEFAULT_BENTO_ORDER);
     setLayoutAnnouncement("Dashboard cards reset to the default layout.");
   }, []);
 
@@ -480,16 +518,45 @@ export function SpinePage() {
     }
   }, [spine?.project]);
 
-  const onRestartRun = useCallback(() => {
-    if (!spine?.project?.id || restartBusy) return;
+  const onStopRun = useCallback(() => {
+    if (!spine?.project?.id || stopBusy || restartBusy) return;
     const projectId = spine.project.id;
     const title = spine.project.title;
     Modal.confirm({
-      title: "Stop & restart this run?",
-      content: `Nexus will stop the current crew for “${title}” and start again from your brief.`,
-      okText: "Stop & restart",
+      title: "Stop this run?",
+      content: `Nexus will halt the crew for “${title}”. Nothing else will run until you restart.`,
+      okText: "Stop run",
       okButtonProps: { danger: true },
       cancelText: "Keep going",
+      centered: true,
+      onOk: async () => {
+        setStopBusy(true);
+        setError(null);
+        try {
+          await stopRun(projectId);
+          const next = await fetchSpine(projectId, { force: true });
+          setSpine(next);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          throw err;
+        } finally {
+          setStopBusy(false);
+        }
+      },
+    });
+  }, [spine?.project?.id, spine?.project?.title, stopBusy, restartBusy]);
+
+  const onRestartRun = useCallback(() => {
+    if (!spine?.project?.id || restartBusy || stopBusy) return;
+    const projectId = spine.project.id;
+    const title = spine.project.title;
+    Modal.confirm({
+      title: "Restart this run?",
+      content: `Nexus will start “${title}” again from your brief. Any in-progress crew work will be stopped first.`,
+      okText: "Restart run",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      centered: true,
       onOk: async () => {
         setRestartBusy(true);
         setError(null);
@@ -505,7 +572,7 @@ export function SpinePage() {
         }
       },
     });
-  }, [spine?.project?.id, spine?.project?.title, restartBusy]);
+  }, [spine?.project?.id, spine?.project?.title, restartBusy, stopBusy]);
 
   useEffect(() => {
     if (isMockMode()) {
@@ -884,6 +951,10 @@ export function SpinePage() {
   const attentionAgents = spine.agents.filter((agent) => agent.signal === "revision");
   const previewDecisions = (spine.decisions || []).slice(0, 4);
   const workspaceFiles = spine.files || [];
+  const runStatus = (spine.project.status || "").toLowerCase();
+  const canStopRun = /^(running|queued|drafting|in-progress)$/.test(runStatus)
+    || spine.agents.some((a) => a.signal === "active" || a.signal === "revision");
+  const runActionBusy = stopBusy || restartBusy;
 
   const modalSpec: SpecCard | null =
     modal?.type === "spec" ? spine.specs.find((s) => s.id === modal.id) || null : null;
@@ -990,12 +1061,21 @@ export function SpinePage() {
               <Button
                 size="small"
                 danger
-                loading={restartBusy}
-                disabled={!spine.project?.id}
-                onClick={onRestartRun}
-                className="brief-restart-btn"
+                loading={stopBusy}
+                disabled={!spine.project?.id || !canStopRun || runActionBusy}
+                onClick={onStopRun}
+                className="brief-run-btn"
               >
-                Stop & restart
+                Stop
+              </Button>
+              <Button
+                size="small"
+                loading={restartBusy}
+                disabled={!spine.project?.id || runActionBusy}
+                onClick={onRestartRun}
+                className="brief-run-btn"
+              >
+                Restart
               </Button>
               <Button
                 type={layoutEditing ? "primary" : "default"}
