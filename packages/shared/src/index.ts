@@ -178,7 +178,7 @@ export interface SpineSnapshot {
   projects: ProjectListItem[];
   swarmOnline: boolean;
   message?: string;
-  /** Live Cloudflare Sandbox preview when available */
+  /** Live shareable URL (published app or sandbox preview) */
   previewUrl?: string | null;
   sandboxId?: string | null;
 }

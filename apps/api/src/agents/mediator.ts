@@ -36,7 +36,7 @@ const PHASES: Array<{ stage: SpineStage; phase: string; agentId: string; label: 
   { stage: "cross-review", phase: "design", agentId: "design", label: "Design review" },
   { stage: "cross-review", phase: "eng", agentId: "eng", label: "Engineering plan" },
   { stage: "consolidating", phase: "lead", agentId: "mediator", label: "Consolidate" },
-  { stage: "ready", phase: "preview", agentId: "eng", label: "Preview ready" },
+  { stage: "ready", phase: "preview", agentId: "eng", label: "Ship live" },
 ];
 
 function baseAgents(): DomainAgentNode[] {
@@ -355,6 +355,30 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
           brief: this.state.brief,
           swarmName: this.state.swarmName,
         });
+      }
+
+      // Publish-first live URL (no Sandbox required). Workflow path also publishes;
+      // this covers Mediator.advancePhase when CREW_WORKFLOW is unavailable.
+      if (this.state.userId && !this.env.CREW_WORKFLOW) {
+        try {
+          const { autoPublishProject } = await import("../orchestrator/auto-publish");
+          const published = await autoPublishProject(this.env, {
+            userId: this.state.userId,
+            projectId: this.state.projectId,
+            swarmName: this.state.swarmName,
+            title: this.state.title,
+          });
+          if (published?.ok) {
+            this.setState({
+              ...this.state,
+              previewUrl: published.url,
+              sandboxId: "published",
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.warn("auto-publish failed", err);
+        }
       }
     }
 

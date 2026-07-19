@@ -17,7 +17,7 @@ import type {
   SpineSnapshot,
   SpineStage,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
+import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -62,7 +62,7 @@ const BENTO_CARD_LABELS: Record<BentoCardId, string> = {
   orchestrator: "Orchestrator",
   artifacts: "Artifacts",
   health: "Coordination health",
-  preview: "Sandbox preview",
+  preview: "Live app",
   focus: "Focus queue",
   activity: "Activity",
 };
@@ -280,6 +280,7 @@ export function SpinePage() {
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishUrl, setPublishUrl] = useState<string | null>(null);
+  const [sandboxAvailable, setSandboxAvailable] = useState(false);
   const [skipBusy, setSkipBusy] = useState(false);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -399,13 +400,12 @@ export function SpinePage() {
     try {
       const result = await startPreview(spine.project.id);
       if (!result.ok || !result.previewUrl) {
-        setPreviewError(result.message || "Preview unavailable");
+        setPreviewError(result.message || "Sandbox preview unavailable");
       } else {
         setSpine((prev) =>
           prev
             ? {
                 ...prev,
-                previewUrl: result.previewUrl,
                 sandboxId: result.sandboxId,
               }
             : prev,
@@ -428,6 +428,14 @@ export function SpinePage() {
         setPublishError(result.message || "Publish failed");
       } else {
         setPublishUrl(result.url);
+        setSpine((prev) =>
+          prev
+            ? {
+                ...prev,
+                previewUrl: result.url,
+              }
+            : prev,
+        );
       }
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : String(err));
@@ -437,9 +445,59 @@ export function SpinePage() {
   }, [spine?.project]);
 
   useEffect(() => {
+    if (isMockMode()) {
+      setSandboxAvailable(false);
+      return;
+    }
     let alive = true;
-    const load = () =>
-      fetchSpine(project)
+    fetchHealth()
+      .then((h) => {
+        if (alive) setSandboxAvailable(Boolean(h.sandbox));
+      })
+      .catch(() => {
+        if (alive) setSandboxAvailable(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (spine?.previewUrl) setPublishUrl(spine.previewUrl);
+  }, [spine?.previewUrl]);
+
+  useEffect(() => {
+    let alive = true;
+    let timer: number | undefined;
+    let inFlight = false;
+
+    const isActiveRun = (data: SpineSnapshot | null) => {
+      const status = (data?.project?.status || "").toLowerCase();
+      const stage = (data?.project?.stage || "").toLowerCase();
+      if (!data?.project) return false;
+      if (status === "running" || status === "queued" || status === "drafting") return true;
+      if (status === "completed" || status === "ready" || status === "failed") return false;
+      if (stage === "ready" || stage === "idle") return false;
+      if (stage && stage !== "ready") return true;
+      return (data.agents || []).some((a) => a.signal === "active" || a.signal === "revision");
+    };
+
+    const pollMs = (data: SpineSnapshot | null) => {
+      if (document.hidden) return null; // pause while tab is in background
+      return isActiveRun(data) ? 5000 : 30_000;
+    };
+
+    const schedule = (data: SpineSnapshot | null) => {
+      if (timer) window.clearTimeout(timer);
+      const ms = pollMs(data);
+      if (ms == null || isMockMode()) return;
+      timer = window.setTimeout(() => void load(), ms);
+    };
+
+    const load = () => {
+      if (!alive || inFlight) return Promise.resolve();
+      inFlight = true;
+      return fetchSpine(project)
         .then((data) => {
           if (!alive) return;
           setSpine(data);
@@ -447,21 +505,50 @@ export function SpinePage() {
           if (!project && data.project?.id) {
             navigate(`/dashboard/${encodeURIComponent(data.project.id)}`, { replace: true });
           }
+          schedule(data);
         })
         .catch((err: Error) => {
-          if (alive) setError(err.message);
+          if (alive) {
+            setError(err.message);
+            schedule(null); // retry slowly on error via idle interval
+          }
+        })
+        .finally(() => {
+          inFlight = false;
         });
+    };
 
-    load();
-    if (isMockMode()) {
-      return () => {
-        alive = false;
-      };
+    const onVisibility = () => {
+      if (!alive || isMockMode()) return;
+      if (document.hidden) {
+        if (timer) window.clearTimeout(timer);
+        timer = undefined;
+      } else {
+        void fetchSpine(project, { force: true })
+          .then((data) => {
+            if (!alive) return;
+            setSpine(data);
+            setError(null);
+            schedule(data);
+          })
+          .catch((err: Error) => {
+            if (alive) {
+              setError(err.message);
+              schedule(null);
+            }
+          });
+      }
+    };
+
+    void load();
+    if (!isMockMode()) {
+      document.addEventListener("visibilitychange", onVisibility);
     }
-    const id = window.setInterval(load, 2500);
+
     return () => {
       alive = false;
-      window.clearInterval(id);
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [project, navigate]);
 
@@ -638,17 +725,20 @@ export function SpinePage() {
                       ? "Merge"
                       : s.label;
                 const isReadyDone = s.key === "ready" && (cls === "done" || cls === "active");
-                const previewHref = isReadyDone && spine.previewUrl ? spine.previewUrl : undefined;
+                const liveHref =
+                  isReadyDone && (publishUrl || spine.previewUrl)
+                    ? publishUrl || spine.previewUrl || undefined
+                    : undefined;
                 return (
                   <div
                     key={s.key}
-                    className={`stage-step ${cls}${previewHref ? " is-linked" : ""}`}
+                    className={`stage-step ${cls}${liveHref ? " is-linked" : ""}`}
                     role="listitem"
                   >
                     <span className="n">{i < stageIndex ? "✓" : s.num}</span>
-                    {previewHref ? (
+                    {liveHref ? (
                       <a
-                        href={previewHref}
+                        href={liveHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="stage-label-full stage-open-link"
@@ -756,14 +846,19 @@ export function SpinePage() {
 
       <BentoItem {...bentoItemProps("preview")}>
             <PreviewCard
-              previewUrl={spine.previewUrl}
+              liveUrl={publishUrl || spine.previewUrl}
+              sandboxAvailable={sandboxAvailable}
               previewError={previewError}
               previewBusy={previewBusy}
-              onStartPreview={onOpenPreview}
-              publishUrl={publishUrl}
+              onStartSandbox={sandboxAvailable ? onOpenPreview : undefined}
               publishBusy={publishBusy}
               publishError={publishError}
               onPublish={onPublish}
+              canPublish={
+                Boolean(spine.project) &&
+                (spine.project!.stage === "ready" ||
+                  /completed|ready|published|preview/i.test(spine.project!.status))
+              }
             />
       </BentoItem>
 

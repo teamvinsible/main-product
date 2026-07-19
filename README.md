@@ -55,7 +55,8 @@ Legacy VPS swarm is **not** required. Set `LEGACY_SWARM=true` + `SWARM_ORIGIN` o
 - [x] Monorepo + Coordination Spine UI  
 - [x] Supabase Auth + landing  
 - [x] Cloudflare Mediator Agent + D1/R2/Queue control plane  
-- [x] Sandbox preview  
+- [x] Sandbox preview *(optional; requires [Workers Paid](https://dash.cloudflare.com/?to=/:account/workers/plans) + Containers)*  
+- [x] Publish-first live URL (`{slug}.teamvinsible.com` / `/p/{slug}` — no Paid plan required)  
 - [x] Agent build loop (Worker DeepSeek tools → R2; optional SwarmRuntime Container)  
 - [x] Domain agents + CrewRun Workflow (Phase C)  
 - [x] Publish to R2 edge + optional Workers for Platforms (Phase D)  

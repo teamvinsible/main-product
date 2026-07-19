@@ -19,7 +19,7 @@ const PHASES = [
   { stage: "cross-review" as const, phase: "design", agentId: "design", label: "Design review" },
   { stage: "cross-review" as const, phase: "eng", agentId: "eng", label: "Engineering plan" },
   { stage: "consolidating" as const, phase: "lead", agentId: "mediator", label: "Consolidate" },
-  { stage: "ready" as const, phase: "preview", agentId: "eng", label: "Preview ready" },
+  { stage: "ready" as const, phase: "preview", agentId: "eng", label: "Ship live" },
 ];
 
 /**
@@ -100,6 +100,58 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
           }
         },
       );
+
+      if (done) {
+        await step.do(
+          "publish-live",
+          { retries: { limit: 2, delay: "5 seconds", backoff: "linear" } },
+          async () => {
+            // Ensure a static app exists before publishing.
+            if (this.env.WORKSPACES) {
+              const existing = await this.env.WORKSPACES.head(
+                `workspaces/${params.projectId}/index.html`,
+              );
+              if (!existing) {
+                const { scaffoldApp } = await import("../orchestrator/agent-runner");
+                await scaffoldApp(this.env, {
+                  projectId: params.projectId,
+                  title: params.title,
+                  brief: params.brief,
+                  swarmName: params.swarmName,
+                });
+              }
+            }
+
+            const { autoPublishProject } = await import("../orchestrator/auto-publish");
+            const published = await autoPublishProject(this.env, {
+              userId: params.userId,
+              projectId: params.projectId,
+              swarmName: params.swarmName,
+              title: params.title,
+            });
+
+            if (published?.ok && this.env.DB) {
+              await d1CreateNotification(this.env, {
+                id: `run-published-${params.runId}`,
+                userId: params.userId,
+                projectId: params.projectId,
+                runId: params.runId,
+                kind: "run.published",
+                severity: "success",
+                title: "App is live",
+                message: published.url,
+                metadata: { url: published.url, slug: published.slug },
+              });
+            }
+
+            return {
+              ok: Boolean(published?.ok),
+              url: published?.url || null,
+              message: published?.message || null,
+            };
+          },
+        );
+      }
 
       if (!done) {
         await step.sleep(`pause-after-${phase.phase}`, "2 seconds");

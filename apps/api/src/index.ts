@@ -1,7 +1,7 @@
 import type { PlatformProject } from "@teamvinsible/shared";
 import { authConfigured, isAuthResponse, requireAuth, serviceClient, type Authed } from "./auth";
 import { createProject, getProfile, updateProjectPreview, memoryStore } from "./db";
-import { corsHeaders, isDevelopment, json, missingCoreBindings, useLegacySwarm, type Env } from "./env";
+import { corsHeaders, isDevelopment, json, missingCoreBindings, notModified, useLegacySwarm, type Env } from "./env";
 import { d1ListNotifications, d1MarkNotificationsRead } from "./d1";
 import {
   cfGetProject,
@@ -23,6 +23,49 @@ export { DomainAgent } from "./agents/domain-agent";
 export { SwarmRuntime } from "./containers/swarm-runtime";
 export { CrewRunWorkflow } from "./workflows/crew-run";
 export type { Env };
+
+function isSettledProjectStatus(status: string): boolean {
+  const s = status.toLowerCase();
+  return s === "completed" || s === "ready" || s === "failed" || s === "published" || s === "preview";
+}
+
+function projectSpineEtag(id: string, updatedAt: string, status: string): string {
+  return `W/"p:${id}:${updatedAt}:${status}"`;
+}
+
+function spineSnapshotEtag(spine: {
+  project?: { id?: string; status?: string; stage?: string; updatedAt?: string } | null;
+  specsTotal?: number;
+  previewUrl?: string | null;
+  agents?: Array<{ id: string; signal?: string }>;
+}): string {
+  const agents = (spine.agents || []).map((a) => `${a.id}:${a.signal || ""}`).join(",");
+  const raw = [
+    spine.project?.id || "empty",
+    spine.project?.status || "",
+    spine.project?.stage || "",
+    String(spine.specsTotal ?? 0),
+    spine.previewUrl || "",
+    agents,
+  ].join("|");
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) + hash) ^ raw.charCodeAt(i);
+  return `W/"s:${(hash >>> 0).toString(16)}"`;
+}
+
+function spineCacheControl(spine: { project?: { status?: string; stage?: string } | null }): string {
+  const status = (spine.project?.status || "").toLowerCase();
+  const stage = (spine.project?.stage || "").toLowerCase();
+  if (isSettledProjectStatus(status) || stage === "ready") return "private, max-age=30";
+  return "private, max-age=5";
+}
+
+function etagMatches(ifNoneMatch: string, etag: string): boolean {
+  return ifNoneMatch
+    .split(",")
+    .map((part) => part.trim())
+    .some((part) => part === etag || part === etag.replace(/^W\//, "") || `W/${part}` === etag);
+}
 
 function withCors(env: Env, request: Request, res: Response): Response {
   const headers = new Headers(res.headers);
@@ -65,14 +108,42 @@ async function handleAuthed(
 
   if (pathname === "/api/spine" && request.method === "GET") {
     const requested = url.searchParams.get("project");
+    const inm = request.headers.get("If-None-Match");
+
+    // Settled projects: answer 304 from D1 alone (skip Mediator DO) when unchanged.
+    if (inm && requested) {
+      const owned = await cfGetProject(env, auth.user.id, requested);
+      if (owned && isSettledProjectStatus(owned.status)) {
+        const etag = projectSpineEtag(owned.id, owned.updatedAt, owned.status);
+        if (etagMatches(inm, etag)) {
+          return notModified(env, request, etag, "private, max-age=30");
+        }
+      }
+    }
+
     const spine = await cfLoadSpine(env, auth, requested);
-    return json(env, request, spine);
+    const listed = spine.project
+      ? spine.projects?.find((p) => p.id === spine.project!.id || p.name === spine.project!.id)
+      : undefined;
+    const etag =
+      spine.project && listed?.updatedAt
+        ? projectSpineEtag(spine.project.id, listed.updatedAt, spine.project.status || listed.status || "")
+        : spineSnapshotEtag(spine);
+    if (inm && etagMatches(inm, etag)) {
+      return notModified(env, request, etag, spineCacheControl(spine));
+    }
+    return json(env, request, spine, 200, {
+      ETag: etag,
+      "Cache-Control": spineCacheControl(spine),
+    });
   }
 
   if (pathname === "/api/spine/activity" && request.method === "GET") {
     const requested = url.searchParams.get("project");
     const spine = await cfLoadSpine(env, auth, requested);
-    return json(env, request, { activity: spine.activity, source: "cf" });
+    return json(env, request, { activity: spine.activity, source: "cf" }, 200, {
+      "Cache-Control": "private, max-age=5",
+    });
   }
 
   if (pathname === "/api/artifact" && request.method === "GET") {
@@ -83,7 +154,9 @@ async function handleAuthed(
     if (!artifact) {
       return json(env, request, { ok: false, error: "Artifact not found" }, 404);
     }
-    return json(env, request, { ok: true, ...artifact });
+    return json(env, request, { ok: true, ...artifact }, 200, {
+      "Cache-Control": "private, max-age=60",
+    });
   }
 
   if (pathname === "/api/notifications" && request.method === "GET") {
@@ -252,7 +325,7 @@ async function handleAuthed(
     });
 
     if (result.ok) {
-      await cfSetPreview(env, project.id, result.url, project.sandboxId);
+      await cfSetPreview(env, project.id, result.url, project.sandboxId, "published");
     }
     return json(env, request, result, result.ok ? 200 : (result.httpStatus || 503));
   }
@@ -355,8 +428,11 @@ export default {
         ok: ready,
         controlPlane: "cloudflare",
         auth: authReady,
+        sandbox: Boolean(env.Sandbox),
         ...detail,
-      }, ready ? 200 : 503);
+      }, ready ? 200 : 503, {
+        "Cache-Control": ready ? "public, max-age=30" : "no-store",
+      });
     }
 
     const auth = await requireAuth(request, env);

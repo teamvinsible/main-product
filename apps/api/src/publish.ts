@@ -230,7 +230,7 @@ export async function servePublished(
   if (!obj) return null;
   const headers = new Headers();
   headers.set("Content-Type", obj.httpMetadata?.contentType || guessContentType(rel));
-  headers.set("Cache-Control", "public, max-age=60");
+  headers.set("Cache-Control", "public, max-age=300, s-maxage=600");
   headers.set("X-Content-Type-Options", "nosniff");
   if (options.pathServing) {
     // /p/{slug} shares the platform origin with the API (and possibly the web
