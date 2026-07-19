@@ -8,6 +8,15 @@ const SITE_ORIGIN = "https://teamvinsible.com";
 const SITE_NAME = "Teamvinsible";
 const SOCIAL_IMAGE = `${SITE_ORIGIN}/social-card.png`;
 
+type RouteConfig = {
+  output: string;
+  route: string;
+  title: string;
+  description: string;
+  robots: string;
+  publicPage: boolean;
+};
+
 const organizationGraph = () => [
   {
     "@type": "Organization",
@@ -33,7 +42,7 @@ const organizationGraph = () => [
   },
 ];
 
-function pageJsonLd(title, description, route) {
+function pageJsonLd(title: string, description: string, route: string) {
   const url = `${SITE_ORIGIN}${route}`;
   return {
     "@context": "https://schema.org",
@@ -52,7 +61,7 @@ function pageJsonLd(title, description, route) {
   };
 }
 
-const routes = [
+const routes: RouteConfig[] = [
   {
     output: "terms.html",
     route: "/terms",
@@ -118,20 +127,21 @@ const ogKeys = [
   "og:image:width",
   "og:image:height",
   "og:image:alt",
-];
+] as const;
+
 const twitterKeys = [
   "twitter:card",
   "twitter:title",
   "twitter:description",
   "twitter:image",
   "twitter:image:alt",
-];
+] as const;
 
-function escapeRegExp(value) {
+function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function setMeta(html, attribute, key, content) {
+function setMeta(html: string, attribute: string, key: string, content: string | undefined) {
   const pattern = new RegExp(
     `\\s*<meta\\s+${attribute}=["']${escapeRegExp(key)}["'][^>]*>`,
     "i",
@@ -142,7 +152,7 @@ function setMeta(html, attribute, key, content) {
   return html.replace("  </head>", `${tag}\n  </head>`);
 }
 
-function setCanonical(html, canonical) {
+function setCanonical(html: string, canonical: string | undefined) {
   const pattern = /\s*<link\s+rel=["']canonical["'][^>]*>/i;
   if (!canonical) return html.replace(pattern, "");
   const tag = `    <link rel="canonical" href="${canonical}" />`;
@@ -150,7 +160,7 @@ function setCanonical(html, canonical) {
   return html.replace("  </head>", `${tag}\n  </head>`);
 }
 
-function setJsonLd(html, jsonLd) {
+function setJsonLd(html: string, jsonLd: unknown) {
   const pattern = /\s*<script\s+id=["']seo-json-ld["'][^>]*>[\s\S]*?<\/script>/i;
   if (!jsonLd) return html.replace(pattern, "");
   const tag = `    <script id="seo-json-ld" type="application/ld+json">${JSON.stringify(jsonLd)}</script>`;
@@ -158,14 +168,14 @@ function setJsonLd(html, jsonLd) {
   return html.replace("  </head>", `${tag}\n  </head>`);
 }
 
-function renderRoute(baseHtml, config) {
+function renderRoute(baseHtml: string, config: RouteConfig) {
   let html = baseHtml.replace(/<title>[\s\S]*?<\/title>/i, `<title>${config.title}</title>`);
   html = setMeta(html, "name", "description", config.description);
   html = setMeta(html, "name", "robots", config.robots);
   html = setCanonical(html, config.publicPage ? `${SITE_ORIGIN}${config.route}` : undefined);
 
   if (config.publicPage) {
-    const openGraph = {
+    const openGraph: Record<string, string> = {
       "og:type": "website",
       "og:site_name": SITE_NAME,
       "og:locale": "en_US",
@@ -182,7 +192,7 @@ function renderRoute(baseHtml, config) {
     for (const [key, value] of Object.entries(openGraph)) {
       html = setMeta(html, "property", key, value);
     }
-    const twitter = {
+    const twitter: Record<string, string> = {
       "twitter:card": "summary_large_image",
       "twitter:title": config.title,
       "twitter:description": config.description,
@@ -233,4 +243,3 @@ for (const config of routes) {
   await writeFile(outputPath, renderRoute(baseHtml, config), "utf8");
 }
 await writeFile(path.join(distDir, "404.html"), notFoundHtml(), "utf8");
-

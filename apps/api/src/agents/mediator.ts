@@ -1,6 +1,7 @@
 import { Agent, callable, getAgentByName } from "agents";
 import type {
   ActivityItem,
+  DataFlowEdge,
   DomainAgentNode,
   SpecCard,
   SpineSnapshot,
@@ -223,11 +224,23 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       return ws;
     });
 
+    const completedIds = new Set(
+      workstreams
+        .map((ws, i) => (ws.status === "aligned" ? PHASES[i]?.agentId : undefined))
+        .filter((id): id is string => Boolean(id && id !== "mediator")),
+    );
+    if (input.agentId !== "mediator") completedIds.add(input.agentId);
+
     const agents = baseAgents().map((a) => {
-      if (input.done) return { ...a, signal: a.id === "mediator" ? ("done" as const) : ("standby" as const) };
-      if (a.id === "mediator") return { ...a, signal: "active" as const };
-      if (next && a.id === next.agentId) return { ...a, signal: "active" as const };
-      if (a.id === input.agentId) return { ...a, signal: "done" as const };
+      if (a.id === "mediator") {
+        return { ...a, signal: input.done ? ("done" as const) : ("active" as const) };
+      }
+      if (!input.done && next && a.id === next.agentId) {
+        return { ...a, signal: "active" as const };
+      }
+      if (completedIds.has(a.id)) {
+        return { ...a, signal: "done" as const };
+      }
       return { ...a, signal: "standby" as const };
     });
 
@@ -363,6 +376,95 @@ export async function getMediator(env: Env, projectId: string) {
   return getAgentByName<Env, MediatorAgent>(env.Mediator, projectId);
 }
 
+/** Derive hub edges from phase progress so the orchestrator can show handoffs. */
+function buildDataFlows(state: MediatorState): DataFlowEdge[] {
+  const flows: DataFlowEdge[] = [];
+  const baseAt = Date.now();
+  const runComplete = state.status === "completed";
+
+  for (let i = 0; i < PHASES.length; i++) {
+    const phase = PHASES[i]!;
+    const ws = state.workstreams[i];
+    if (!ws) continue;
+
+    const aligned = ws.status === "aligned";
+    const inFlight = ws.status === "in-progress" || ws.status === "drafting";
+    if (!aligned && !inFlight) continue;
+    if (phase.agentId === "mediator") continue;
+
+    const spec = state.specs.find((s) => s.id === `spec-${phase.phase}` || s.owner === phase.agentId);
+    const artifact = spec?.path?.split("/").pop() || `${phase.phase}.md`;
+    const at = baseAt - (PHASES.length - i) * 12_000;
+    // Keep a couple of exchanges "live" after completion so packet motion remains visible.
+    const stillActive = inFlight || (runComplete && i >= PHASES.length - 3);
+
+    flows.push({
+      id: `flow-${phase.phase}-dispatch`,
+      from: "mediator",
+      to: phase.agentId,
+      artifacts: ["brief.md"],
+      at: at - 4_000,
+      active: stillActive,
+      kind: "from-mediator",
+    });
+
+    if (aligned || inFlight) {
+      flows.push({
+        id: `flow-${phase.phase}-report`,
+        from: phase.agentId,
+        to: "mediator",
+        artifacts: [artifact],
+        at,
+        active: stillActive,
+        kind: "to-mediator",
+      });
+    }
+  }
+
+  // Sequential handoffs between consecutive domain agents (after both have run).
+  for (let i = 1; i < PHASES.length; i++) {
+    const prev = PHASES[i - 1]!;
+    const curr = PHASES[i]!;
+    if (prev.agentId === "mediator" || curr.agentId === "mediator") continue;
+    const prevWs = state.workstreams[i - 1];
+    const currWs = state.workstreams[i];
+    if (!prevWs || prevWs.status !== "aligned") continue;
+    if (!currWs || (currWs.status !== "aligned" && currWs.status !== "in-progress")) continue;
+
+    const prevSpec = state.specs.find((s) => s.id === `spec-${prev.phase}`);
+    const artifact = prevSpec?.path?.split("/").pop() || `${prev.phase}.md`;
+    flows.push({
+      id: `flow-${prev.phase}-to-${curr.phase}`,
+      from: prev.agentId,
+      to: curr.agentId,
+      artifacts: [artifact],
+      at: baseAt - (PHASES.length - i) * 12_000 + 2_000,
+      active: currWs.status === "in-progress" || (runComplete && i >= PHASES.length - 2),
+      kind: "handoff",
+    });
+  }
+
+  return flows;
+}
+
+/** Prefer domain agents that already participated; never leave a finished run as standby-only. */
+function agentsForSpine(state: MediatorState): DomainAgentNode[] {
+  const touched = new Set(
+    state.workstreams
+      .filter((ws) => ws.status === "aligned" || ws.status === "in-progress" || ws.status === "drafting")
+      .map((ws) => ws.agentRole),
+  );
+
+  return state.agents.map((a) => {
+    if (a.id === "mediator") return a;
+    if (a.signal !== "standby") return a;
+    if (touched.has(a.id) || state.status === "completed") {
+      return { ...a, signal: "done" as const };
+    }
+    return a;
+  });
+}
+
 export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["projects"]): SpineSnapshot {
   if (!state.projectId) {
     return {
@@ -390,6 +492,8 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
   const aligned = state.workstreams.filter((w) => w.status === "aligned").length;
   const inProgress = state.workstreams.filter((w) => w.status === "in-progress" || w.status === "drafting").length;
   const total = state.workstreams.length || 1;
+  const agents = agentsForSpine(state);
+  const dataFlows = buildDataFlows(state);
 
   return {
     empty: false,
@@ -406,8 +510,8 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
       updatedAt: "Just now",
     },
     workstreams: state.workstreams,
-    agents: state.agents,
-    dataFlows: [],
+    agents,
+    dataFlows,
     specs: state.specs,
     activeSpecId: state.specs[0]?.id,
     activeQuestion: null,

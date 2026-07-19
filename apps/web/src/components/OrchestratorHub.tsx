@@ -313,9 +313,9 @@ export function OrchestratorHub({
     ? activeFlows
         .filter((f) => f.id === focusFlowId)
         .concat(dataFlows.filter((f) => f.id === focusFlowId && !activeFlows.some((a) => a.id === f.id)))
-    : activeFlows.slice(0, canvas ? 5 : 2);
+    : activeFlows.slice(0, canvas ? 5 : 4);
 
-  const showQuiet = focusFlowId ? [] : quietFlows.slice(0, canvas ? 4 : 1);
+  const showQuiet = focusFlowId ? [] : quietFlows.slice(0, canvas ? 4 : 3);
   const empty = visibleAgents.length === 0 && showFlows.length === 0;
   const ready = Object.keys(geoms).length > 0;
 

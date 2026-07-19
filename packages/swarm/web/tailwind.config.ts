@@ -1,6 +1,6 @@
+import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
-/** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -29,14 +29,30 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Space Grotesk", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"],
+        sans: [
+          "Space Grotesk",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica",
+          "Arial",
+          "sans-serif",
+        ],
         mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "SF Mono", "Menlo", "Consolas", "monospace"],
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
-        "pulse-ring": { "0%": { opacity: ".55", transform: "scale(1)" }, "100%": { opacity: "0", transform: "scale(2.4)" } },
-        "glow-run": { "0%,100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0)" }, "50%": { boxShadow: "0 0 0 3px hsl(var(--primary) / .2)" } },
+        "pulse-ring": {
+          "0%": { opacity: ".55", transform: "scale(1)" },
+          "100%": { opacity: "0", transform: "scale(2.4)" },
+        },
+        "glow-run": {
+          "0%,100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0)" },
+          "50%": { boxShadow: "0 0 0 3px hsl(var(--primary) / .2)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -47,4 +63,4 @@ export default {
     },
   },
   plugins: [tailwindcssAnimate],
-};
+} satisfies Config;

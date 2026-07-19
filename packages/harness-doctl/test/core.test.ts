@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { parseSpec, renderPlan, runGates, computeRequiredEnv, buildDotenv } from "../dist/index.js";
+import { parseSpec, renderPlan, runGates, computeRequiredEnv, buildDotenv } from "../src/index.js";
 
 const example = await readFile(new URL("../examples/project.spec.yaml", import.meta.url), "utf8");
 
@@ -34,7 +34,10 @@ test("gates reject a database host port", async () => {
   const { spec, graph } = parseSpec(example);
   assert.ok(spec && graph);
   const stack = renderPlan(graph, { region: spec.region, prod: false });
-  stack.compose.content = stack.compose.content.replace("postgres_main:\n", "postgres_main:\n    ports:\n      - 5432:5432\n");
+  stack.compose.content = stack.compose.content.replace(
+    "postgres_main:\n",
+    "postgres_main:\n    ports:\n      - 5432:5432\n",
+  );
   const report = await runGates(stack);
   assert.equal(report.ok, false);
   assert.ok(report.results.some((result) => result.id === "compose/db-no-public-port" && result.level === "error"));
@@ -47,5 +50,5 @@ test("secret requirements and dotenv escaping are deterministic", () => {
   const names = computeRequiredEnv(stack);
   assert.deepEqual([...names].sort(), names);
   assert.ok(names.includes("PG_PASSWORD"));
-  assert.equal(buildDotenv({ SIMPLE: "ok", COMPLEX: "a b\"c" }), "SIMPLE=ok\nCOMPLEX=\"a b\\\"c\"\n");
+  assert.equal(buildDotenv({ SIMPLE: "ok", COMPLEX: 'a b"c' }), 'SIMPLE=ok\nCOMPLEX="a b\\"c"\n');
 });
