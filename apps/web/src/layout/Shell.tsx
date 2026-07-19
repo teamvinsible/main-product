@@ -58,8 +58,10 @@ export function Shell() {
     }
   };
 
-  const displayName = user?.displayName || prefs.displayName || "Workspace";
-  const workspaceLabel = prefs.workspaceName || displayName;
+  const displayName =
+    user?.displayName || user?.email?.split("@")[0] || prefs.displayName || "Workspace";
+  // Signed-in users see their own name; the workspace alias only labels demo sessions.
+  const workspaceLabel = user ? displayName : prefs.workspaceName || displayName;
   const avatar = initialsFrom(displayName);
 
   return (

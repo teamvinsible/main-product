@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Link, Route, Routes, useParams } from "react-router-dom";
+import { BrandLoader } from "./components/BrandLoader";
 import { SeoMetadata } from "./components/SeoMetadata";
 import { LandingPage } from "./pages/LandingPage";
 import { PrivacyPage, TermsPage } from "./pages/LegalPages";
@@ -28,8 +29,8 @@ const SpinePage = lazy(() =>
 
 function RouteFallback() {
   return (
-    <main className="page-state" role="status" aria-live="polite">
-      <p className="muted">Loading Teamvinsible…</p>
+    <main className="page-state">
+      <BrandLoader label="Loading Teamvinsible…" />
     </main>
   );
 }

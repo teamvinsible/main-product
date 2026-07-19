@@ -6950,3 +6950,62 @@ a:hover {
     transition: none !important;
   }
 }
+
+/* Brand loader — the logo mark drawing itself in a loop */
+.brand-loader {
+  display: grid;
+  place-items: center;
+  gap: 0.7rem;
+  padding: 2.5rem 0;
+}
+
+.brand-loader .brand-logo-mark {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.brand-loader .brand-logo-rail {
+  --brand-dash: 40;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: brand-loader-draw 1.6s ease-in-out infinite;
+}
+
+.brand-loader .brand-logo-signal {
+  --brand-dash: 24;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: brand-loader-draw 1.6s ease-in-out 0.3s infinite;
+}
+
+.brand-loader .brand-logo-mark circle {
+  animation: brand-loader-dot 1.6s ease-in-out infinite;
+}
+.brand-loader .brand-logo-mark circle:nth-of-type(2) { animation-delay: 0.2s; }
+.brand-loader .brand-logo-mark circle:nth-of-type(3) { animation-delay: 0.4s; }
+
+.brand-loader-label {
+  font-size: 0.85rem;
+}
+
+@keyframes brand-loader-draw {
+  0% { stroke-dashoffset: var(--brand-dash, 40); opacity: 0.3; }
+  55% { stroke-dashoffset: 0; opacity: 1; }
+  82% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.15; }
+}
+
+@keyframes brand-loader-dot {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader .brand-logo-rail,
+  .brand-loader .brand-logo-signal,
+  .brand-loader .brand-logo-mark circle {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
