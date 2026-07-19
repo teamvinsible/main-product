@@ -1742,8 +1742,8 @@ a:hover {
   flex: 1;
   min-height: 280px;
   min-width: 0;
-  margin: 4px 4px 0;
-  padding: 28px 18px 36px;
+  margin: 2px 2px 0;
+  padding: 18px 10px 28px;
   overflow: hidden;
 }
 
@@ -1796,13 +1796,13 @@ a:hover {
 }
 
 .hub-node {
-  --hub-bubble: 42px;
+  --hub-bubble: 30px;
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 100px;
+  width: 72px;
   height: var(--hub-bubble);
   z-index: 2;
-  max-width: 28%;
+  max-width: 22%;
   pointer-events: none;
 }
 
@@ -1823,7 +1823,7 @@ a:hover {
 }
 
 .hub-node.mediator {
-  --hub-bubble: 54px;
+  --hub-bubble: 40px;
 }
 
 .hub-node.mediator .bubble {
@@ -1844,27 +1844,16 @@ a:hover {
 }
 
 .hub-node .name {
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 10.5px;
   letter-spacing: -0.02em;
   color: var(--ink);
 }
 
 .hub-node .detail {
-  top: calc(100% + 22px);
-  font-size: 11px;
-  color: var(--ink-3);
-  line-height: 1.3;
-  letter-spacing: -0.005em;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: none;
 }
 
 .hub-node.active .bubble {
@@ -2719,8 +2708,8 @@ a:hover {
   }
 
   .hub-node {
-    width: 96px;
-    max-width: 42%;
+    width: 68px;
+    max-width: 24%;
   }
 
   .hub-node .detail {
@@ -4713,12 +4702,13 @@ a:hover {
 .hub.is-canvas {
   flex: 1;
   min-height: 0;
-  padding-bottom: 36px;
+  padding: 28px 18px 36px;
 }
 
 .hub.is-canvas .hub-node {
   --hub-bubble: 48px;
   width: 132px;
+  max-width: 28%;
 }
 
 .hub.is-canvas .hub-node.mediator {
@@ -4730,15 +4720,24 @@ a:hover {
 }
 
 .hub.is-canvas .hub-node .name {
+  top: calc(100% + 6px);
   font-size: 13px;
   font-weight: 700;
 }
 
 .hub.is-canvas .hub-node .detail {
-  display: block;
+  display: -webkit-box;
+  top: calc(100% + 22px);
   font-size: 11.5px;
   max-width: 128px;
   line-height: 1.3;
+  color: var(--ink-3);
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .flow-canvas-legend {

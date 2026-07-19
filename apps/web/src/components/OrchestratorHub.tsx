@@ -22,10 +22,15 @@ const ICONS: Record<string, typeof IconSearch> = {
   product: IconBox,
   brand: IconPalette,
   design: IconPalette,
+  architect: IconStar,
   social: IconChat,
   email: IconMail,
   engineering: IconCode,
   eng: IconCode,
+  qa: IconCheck,
+  devops: IconLoop,
+  marketing: IconChat,
+  growth: IconStar,
   review: IconCheck,
 };
 
@@ -35,23 +40,33 @@ const LABELS: Record<string, string> = {
   product: "Product",
   brand: "Brand",
   design: "Design",
+  architect: "Architect",
   social: "Social",
   email: "Email",
   engineering: "Engineering",
   eng: "Engineering",
+  qa: "QA",
+  devops: "DevOps",
+  marketing: "Marketing",
+  growth: "Growth",
   review: "Review",
 };
 
 /** Prefer a stable ring order when several domains are present */
 const RING_ORDER = [
-  "research",
   "product",
-  "brand",
+  "research",
   "design",
+  "architect",
+  "eng",
+  "engineering",
+  "qa",
+  "devops",
+  "marketing",
+  "growth",
+  "brand",
   "social",
   "email",
-  "engineering",
-  "eng",
   "review",
 ];
 
@@ -80,17 +95,22 @@ function dedupeFlows(flows: DataFlowEdge[]): DataFlowEdge[] {
 /** Place mediator in the center; arrange engaged satellites evenly on a ring (% of hub). */
 function layoutPositions(nodeIds: string[], canvas: boolean): Record<string, Pt> {
   const cx = 50;
-  const cy = canvas ? 50 : 48;
+  const cy = canvas ? 50 : 50;
   const pos: Record<string, Pt> = { mediator: { x: cx, y: cy } };
   if (!nodeIds.length) return pos;
 
+  // Compact uses a wider ring + smaller bubbles so handoffs stay visible in-card.
   const radius = canvas
     ? nodeIds.length <= 3
       ? 34
-      : 38
+      : nodeIds.length <= 6
+        ? 38
+        : 40
     : nodeIds.length <= 3
-      ? 30
-      : 33;
+      ? 34
+      : nodeIds.length <= 6
+        ? 38
+        : 40;
 
   const sorted = [...nodeIds].sort((a, b) => {
     const ia = RING_ORDER.indexOf(a);
@@ -236,14 +256,13 @@ export function OrchestratorHub({
       .filter((f) => positions[f.from] && positions[f.to])
       .sort((a, b) => b.at - a.at);
 
-    // Compact hub stays sparse; full canvas must show every exchange from the rail.
+    // Both compact and canvas draw the full exchange set — compact shrinks nodes instead.
     const quiet = flows
       .filter((f) => !f.active)
       .filter((f) => positions[f.from] && positions[f.to])
-      .sort((a, b) => b.at - a.at)
-      .slice(0, canvas ? flows.length : 2);
+      .sort((a, b) => b.at - a.at);
 
-    const lines = active.slice(0, canvas ? 3 : 2).map((f) => {
+    const lines = active.slice(0, 4).map((f) => {
       const art = f.artifacts[0] ? shortArtifact(f.artifacts[0], canvas) : "signal";
       const from = LABELS[f.from] || f.from;
       const to = LABELS[f.to] || f.to;
@@ -328,30 +347,24 @@ export function OrchestratorHub({
     [],
   );
 
-  // Canvas draws the full exchange set with motion; compact keeps a short live subset.
+  // Compact and canvas both render the full exchange graph (focus still elevates one edge).
+  const allFlows = [
+    ...activeFlows,
+    ...quietFlows.filter((f) => !activeFlows.some((a) => a.id === f.id)),
+  ];
   const showFlows = focusFlowId
     ? (() => {
         const focused =
           activeFlows.find((f) => f.id === focusFlowId) ||
           quietFlows.find((f) => f.id === focusFlowId) ||
           dataFlows.find((f) => f.id === focusFlowId);
-        if (canvas) {
-          const all = [...activeFlows, ...quietFlows.filter((f) => !activeFlows.some((a) => a.id === f.id))];
-          if (!focused) return all;
-          return [focused, ...all.filter((f) => f.id !== focused.id)];
-        }
-        return focused ? [focused] : [];
+        if (!focused) return allFlows;
+        return [focused, ...allFlows.filter((f) => f.id !== focused.id)];
       })()
-    : canvas
-      ? [...activeFlows, ...quietFlows.filter((f) => !activeFlows.some((a) => a.id === f.id))]
-      : activeFlows.slice(0, 4);
+    : allFlows;
 
-  // Compact still shows a few dashed quiet edges; canvas animates everything above.
-  const showQuiet = canvas
-    ? []
-    : focusFlowId
-      ? []
-      : quietFlows.slice(0, 3);
+  // Quiet edges are already folded into showFlows for motion; no separate dashed layer.
+  const showQuiet: typeof quietFlows = [];
   const empty = visibleAgents.length === 0 && showFlows.length === 0 && showQuiet.length === 0;
   const ready = Object.keys(geoms).length > 0;
   const flowLanes = laneMapFor(showFlows);
@@ -579,7 +592,7 @@ export function OrchestratorHub({
               style={{ left: `${pos.mediator.x}%`, top: `${pos.mediator.y}%` }}
             >
               <div className="bubble" ref={setBubbleRef("mediator")}>
-                <IconStar size={canvas ? 26 : 22} />
+                <IconStar size={canvas ? 26 : 16} />
               </div>
               <div className="name">Mediator</div>
               <div className="detail">
@@ -607,7 +620,7 @@ export function OrchestratorHub({
                   title={agent.swarmRoles?.join(", ")}
                 >
                   <div className="bubble" ref={setBubbleRef(agent.id)}>
-                    <Icon size={canvas ? 20 : 18} />
+                    <Icon size={canvas ? 20 : 14} />
                   </div>
                   <div className="name">{agent.label}</div>
                   <div className="detail">{agent.detail}</div>

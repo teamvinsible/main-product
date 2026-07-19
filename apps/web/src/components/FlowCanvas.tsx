@@ -10,10 +10,15 @@ const LABELS: Record<string, string> = {
   product: "Product",
   brand: "Brand",
   design: "Design",
+  architect: "Architect",
   social: "Social",
   email: "Email",
   engineering: "Engineering",
   eng: "Engineering",
+  qa: "QA",
+  devops: "DevOps",
+  marketing: "Marketing",
+  growth: "Growth",
   review: "Review",
 };
 

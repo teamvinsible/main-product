@@ -276,12 +276,21 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       ? input.path
       : `artifacts/${input.phase}.md`;
 
+    // A finished phase owns an approved artifact. Never leave earlier docs stuck on
+    // "cross-review" after the workstream (or whole run) has already aligned.
+    const priorDocs = this.state.specs
+      .filter((s) => s.id !== specId && isArtifactDocPath(s.path))
+      .map((s) =>
+        input.done || s.status === "cross-review" || s.status === "drafting"
+          ? { ...s, status: "ready" as const }
+          : s,
+      );
     const specs: SpecCard[] = [
-      ...this.state.specs.filter((s) => s.id !== specId && isArtifactDocPath(s.path)),
+      ...priorDocs,
       {
         id: specId,
         title: input.label,
-        status: input.done ? "ready" : "cross-review",
+        status: "ready",
         owner: input.agentId,
         updatedAt: now,
         summary: input.summary,
@@ -714,13 +723,22 @@ export function mediatorToSpine(state: MediatorState, projects: SpineSnapshot["p
     !value || value === "Just now" || value.toLowerCase() === "just now" ? fallbackAt : value;
 
   // Split legacy mixed SpecCards into docs vs workspace files.
+  const allAligned =
+    state.workstreams.length > 0 && state.workstreams.every((w) => w.status === "aligned");
+  const projectSettled =
+    isSettledStatus(state.status) || state.stage === "ready" || allAligned;
   const docs: SpecCard[] = [];
   const filesByPath = new Map<string, WorkspaceFileCard>();
   for (const f of state.files || []) {
     filesByPath.set(f.path, { ...f, updatedAt: coerceAt(f.updatedAt) });
   }
   for (const s of state.specs || []) {
-    const card = { ...s, updatedAt: coerceAt(s.updatedAt) };
+    // Heal stale "Review" badges when health/workstreams already show aligned/complete.
+    const healedStatus =
+      projectSettled && (s.status === "cross-review" || s.status === "drafting")
+        ? ("ready" as const)
+        : s.status;
+    const card = { ...s, status: healedStatus, updatedAt: coerceAt(s.updatedAt) };
     if (s.path && isWorkspaceFilePath(s.path)) {
       filesByPath.set(s.path, {
         id: `file-${s.path}`,
