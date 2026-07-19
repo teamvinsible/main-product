@@ -681,9 +681,7 @@ export function SpinePage() {
                   <span className="muted">{formatStatusLabel(spine.project.status)}</span>
                 )}
               </div>
-              <Button type="default" size="small" onClick={() => setModal({ type: "orchestrator" })}>
-                Details
-              </Button>
+              <TabExpandButton label="Full view" onClick={() => setModal({ type: "orchestrator" })} />
             </div>
           </div>
 
