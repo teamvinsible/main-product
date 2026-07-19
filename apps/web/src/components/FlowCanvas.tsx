@@ -85,8 +85,8 @@ export function FlowCanvas({
           <p className="flow-canvas-kicker">Canvas</p>
           <h2 id={titleId}>{title}</h2>
           <p className="muted">
-            {activeCount > 0
-              ? `${activeCount} live exchange${activeCount === 1 ? "" : "s"} · click a handoff to focus`
+            {sortedFlows.length > 0
+              ? `${sortedFlows.length} exchange${sortedFlows.length === 1 ? "" : "s"} · ${activeCount} live · click a handoff to focus`
               : "Agent signals and artifact handoffs"}
           </p>
         </div>

@@ -141,6 +141,7 @@ function flowPathPx(
   fromId: string,
   toId: string,
   lane: number,
+  canvas = false,
 ): { d: string; labelAt: Pt } | null {
   const a0 = geoms[fromId];
   const b0 = geoms[toId];
@@ -155,9 +156,11 @@ function flowPathPx(
   const nx = -dy / len;
   const ny = dx / len;
 
-  // Fan lanes left/right so parallel hub edges don't stack
+  // Fan parallel edges on the same agent pair; wider spacing in full canvas.
   const side = lane % 2 === 0 ? 1 : -1;
-  const magnitude = 16 + Math.floor(lane / 2) * 18;
+  const step = canvas ? 34 : 20;
+  const base = canvas ? 28 : 16;
+  const magnitude = base + Math.floor(lane / 2) * step;
   const bend = side * magnitude;
 
   const mx = (a.x + b.x) / 2 + nx * bend;
@@ -167,6 +170,21 @@ function flowPathPx(
     d: `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`,
     labelAt: { x: mx, y: my },
   };
+}
+
+/** Stable per-pair lane indexes so only true parallel edges fan apart. */
+function laneMapFor(flows: DataFlowEdge[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  const lanes = new Map<string, number>();
+  for (const f of flows) {
+    const a = f.from < f.to ? f.from : f.to;
+    const b = f.from < f.to ? f.to : f.from;
+    const pair = `${a}::${b}`;
+    const n = counts.get(pair) || 0;
+    counts.set(pair, n + 1);
+    lanes.set(f.id, n);
+  }
+  return lanes;
 }
 
 interface Props {
@@ -310,7 +328,7 @@ export function OrchestratorHub({
     [],
   );
 
-  // Canvas draws the full exchange set; compact keeps a short live subset.
+  // Canvas draws the full exchange set with motion; compact keeps a short live subset.
   const showFlows = focusFlowId
     ? (() => {
         const focused =
@@ -318,27 +336,25 @@ export function OrchestratorHub({
           quietFlows.find((f) => f.id === focusFlowId) ||
           dataFlows.find((f) => f.id === focusFlowId);
         if (canvas) {
-          // Keep every live edge; promote the focused quiet edge so it animates.
-          const rest = activeFlows.filter((f) => f.id !== focusFlowId);
-          return focused && !activeFlows.some((f) => f.id === focusFlowId)
-            ? [focused, ...rest]
-            : focused
-              ? [focused, ...rest]
-              : activeFlows;
+          const all = [...activeFlows, ...quietFlows.filter((f) => !activeFlows.some((a) => a.id === f.id))];
+          if (!focused) return all;
+          return [focused, ...all.filter((f) => f.id !== focused.id)];
         }
         return focused ? [focused] : [];
       })()
     : canvas
-      ? activeFlows
+      ? [...activeFlows, ...quietFlows.filter((f) => !activeFlows.some((a) => a.id === f.id))]
       : activeFlows.slice(0, 4);
 
+  // Compact still shows a few dashed quiet edges; canvas animates everything above.
   const showQuiet = canvas
-    ? quietFlows.filter((f) => !showFlows.some((a) => a.id === f.id))
+    ? []
     : focusFlowId
       ? []
       : quietFlows.slice(0, 3);
   const empty = visibleAgents.length === 0 && showFlows.length === 0 && showQuiet.length === 0;
   const ready = Object.keys(geoms).length > 0;
+  const flowLanes = laneMapFor(showFlows);
 
   return (
     <>
@@ -391,7 +407,7 @@ export function OrchestratorHub({
 
               {ready &&
                 showQuiet.map((f, i) => {
-                  const route = flowPathPx(geoms, f.from, f.to, i + showFlows.length);
+                  const route = flowPathPx(geoms, f.from, f.to, i, canvas);
                   if (!route) return null;
                   const focused = !focusFlowId || focusFlowId === f.id;
                   return (
@@ -409,11 +425,18 @@ export function OrchestratorHub({
 
               {ready &&
                 showFlows.map((f, i) => {
-                  const route = flowPathPx(geoms, f.from, f.to, i);
+                  const route = flowPathPx(geoms, f.from, f.to, flowLanes.get(f.id) ?? i, canvas);
                   if (!route) return null;
                   const isRev = f.kind === "revision";
                   const isUp = f.kind === "to-mediator";
-                  const stroke = isRev ? "var(--purple)" : isUp ? "var(--green)" : "var(--blue)";
+                  const isLive = f.active;
+                  const stroke = isRev
+                    ? "var(--purple)"
+                    : isUp
+                      ? "var(--green)"
+                      : f.kind === "from-mediator"
+                        ? "var(--blue)"
+                        : "var(--blue)";
                   const marker = isRev
                     ? `url(#${uid}-rev-arrow)`
                     : isUp
@@ -421,23 +444,27 @@ export function OrchestratorHub({
                       : `url(#${uid}-flow-arrow)`;
                   const isFocus = focusFlowId === f.id;
                   const label =
-                    canvas && (isFocus || i === 0) && f.artifacts[0]
+                    canvas && (isFocus || (isLive && i === 0)) && f.artifacts[0]
                       ? shortArtifact(f.artifacts[0], true)
                       : "";
-                  const dur = 2 + (i % 2) * 0.4;
+                  const dur = 2.2 + (i % 3) * 0.35;
                   const focused = !focusFlowId || isFocus;
                   const labelW = Math.min(label.length * 7.2 + 12, 160);
 
                   return (
-                    <g key={`active-${f.id}`} className="flow-exchange" opacity={focused ? 1 : 0.12}>
+                    <g
+                      key={`active-${f.id}`}
+                      className="flow-exchange"
+                      opacity={focused ? (isLive || canvas ? 1 : 0.55) : 0.12}
+                    >
                       <path
                         d={route.d}
                         fill="none"
                         stroke={stroke}
-                        strokeWidth={isFocus ? 2.75 : 2.25}
-                        strokeDasharray="8 5"
+                        strokeWidth={isFocus ? 2.75 : isLive ? 2.25 : 1.85}
+                        strokeDasharray={isLive ? "8 5" : "5 6"}
                         markerEnd={marker}
-                        opacity={0.95}
+                        opacity={isLive ? 0.95 : 0.72}
                       >
                         <animate
                           attributeName="stroke-dashoffset"
@@ -448,7 +475,12 @@ export function OrchestratorHub({
                         />
                       </path>
 
-                      <circle r={4.5} fill={stroke} filter={`url(#${uid}-packet-glow)`}>
+                      <circle
+                        r={isLive ? 4.5 : 3.5}
+                        fill={stroke}
+                        filter={`url(#${uid}-packet-glow)`}
+                        opacity={isLive ? 1 : 0.85}
+                      >
                         <animateMotion dur={`${dur}s`} repeatCount="indefinite" path={route.d} />
                       </circle>
 
@@ -551,13 +583,15 @@ export function OrchestratorHub({
               </div>
               <div className="name">Mediator</div>
               <div className="detail">
-                {activeFlows.length
-                  ? `${activeFlows.length} live exchange${activeFlows.length === 1 ? "" : "s"}`
+                {showFlows.length
+                  ? `${showFlows.length} exchange${showFlows.length === 1 ? "" : "s"}`
                   : visibleAgents.some((a) => a.signal === "active")
                     ? "Coordinating live"
                     : visibleAgents.some((a) => a.signal === "revision")
                       ? "Resolving doubts"
-                      : "Aligning specs"}
+                      : visibleAgents.length
+                        ? "Aligning specs"
+                        : "Waiting for exchanges"}
               </div>
             </div>
 
