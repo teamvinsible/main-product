@@ -35,7 +35,7 @@ const PHASES: Array<{ stage: SpineStage; phase: string; agentId: string; label: 
   { stage: "drafting", phase: "product", agentId: "product", label: "Product spec" },
   { stage: "cross-review", phase: "design", agentId: "design", label: "Design review" },
   { stage: "cross-review", phase: "eng", agentId: "eng", label: "Engineering plan" },
-  { stage: "consolidating", phase: "lead", agentId: "mediator", label: "Consolidate" },
+  { stage: "consolidating", phase: "lead", agentId: "mediator", label: "Lead completeness gate" },
   { stage: "ready", phase: "preview", agentId: "eng", label: "Ship live" },
 ];
 
@@ -84,6 +84,17 @@ function baseAgents(): DomainAgentNode[] {
   ];
 }
 
+function isSettledStatus(status: string): boolean {
+  const s = status.toLowerCase();
+  return s === "completed" || s === "ready" || s === "failed" || s === "published" || s === "preview";
+}
+
+type SpineSseClient = {
+  projects: SpineSnapshot["projects"];
+  write: (chunk: string) => void;
+  close: () => void;
+};
+
 export class MediatorAgent extends Agent<Env, MediatorState> {
   initialState: MediatorState = {
     projectId: "",
@@ -104,6 +115,108 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     startedAt: "",
     updatedAt: "",
   };
+
+  /** Live dashboard SSE writers (one Durable Object instance per project). */
+  #sseClients = new Set<SpineSseClient>();
+
+  async onRequest(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith("/sse") && request.method === "GET") {
+      return this.openSpineSse(request);
+    }
+    return new Response("Not found", { status: 404 });
+  }
+
+  onStateChanged(state: MediatorState | undefined, _source: unknown): void {
+    if (!state || this.#sseClients.size === 0) return;
+    for (const client of [...this.#sseClients]) {
+      this.writeSpineEvent(client, state);
+      if (isSettledStatus(state.status) || state.stage === "ready") {
+        this.endSseClient(client, "settled");
+      }
+    }
+  }
+
+  private openSpineSse(request: Request): Response {
+    let projects: SpineSnapshot["projects"] = [];
+    try {
+      const raw = request.headers.get("X-Spine-Projects");
+      if (raw) projects = JSON.parse(raw) as SpineSnapshot["projects"];
+    } catch {
+      projects = [];
+    }
+
+    const encoder = new TextEncoder();
+    let client: SpineSseClient | undefined;
+    let pingTimer: ReturnType<typeof setInterval> | undefined;
+
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        const write = (chunk: string) => {
+          try {
+            controller.enqueue(encoder.encode(chunk));
+          } catch {
+            // Client already disconnected.
+          }
+        };
+        const close = () => {
+          try {
+            controller.close();
+          } catch {
+            // Already closed.
+          }
+        };
+
+        client = { projects, write, close };
+        this.#sseClients.add(client);
+        this.writeSpineEvent(client, this.state);
+
+        if (isSettledStatus(this.state.status) || this.state.stage === "ready") {
+          this.endSseClient(client, "settled");
+          return;
+        }
+
+        pingTimer = setInterval(() => {
+          write("event: ping\ndata: {}\n\n");
+        }, 15_000);
+
+        const onAbort = () => {
+          if (pingTimer) clearInterval(pingTimer);
+          if (client) this.#sseClients.delete(client);
+          close();
+        };
+        if (request.signal.aborted) {
+          onAbort();
+          return;
+        }
+        request.signal.addEventListener("abort", onAbort, { once: true });
+      },
+      cancel: () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (client) this.#sseClients.delete(client);
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  }
+
+  private writeSpineEvent(client: SpineSseClient, state: MediatorState): void {
+    const spine = mediatorToSpine(state, client.projects);
+    const id = state.updatedAt || String(Date.now());
+    client.write(`event: spine\nid: ${id}\ndata: ${JSON.stringify(spine)}\n\n`);
+  }
+
+  private endSseClient(client: SpineSseClient, reason: string): void {
+    client.write(`event: end\ndata: ${JSON.stringify({ reason })}\n\n`);
+    this.#sseClients.delete(client);
+    client.close();
+  }
 
   @callable()
   async bootstrap(input: {
@@ -295,7 +408,12 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     try {
       if (this.env.DomainAgent) {
         const { getDomainAgent } = await import("./domain-agent");
-        const role = current.agentId === "mediator" ? "product" : current.agentId;
+        const role =
+          current.phase === "lead"
+            ? "mediator"
+            : current.agentId === "mediator"
+              ? "product"
+              : current.agentId;
         const agent = await getDomainAgent(this.env, this.state.projectId, role);
         const result = await agent.runPhase({
           role,
@@ -310,7 +428,18 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
         artifactPath = result.path;
       } else {
         const { runEngineeringBuild, writePhaseArtifact } = await import("../orchestrator/agent-runner");
-        if (current.phase === "eng" || current.phase === "preview") {
+        if (current.phase === "lead" || current.phase === "preview") {
+          const { leadEnsureWorkspaceReady } = await import("../orchestrator/lead-gate");
+          const gate = await leadEnsureWorkspaceReady(this.env, {
+            projectId: this.state.projectId,
+            title: this.state.title,
+            brief: this.state.brief,
+            swarmName: this.state.swarmName,
+            allowRebuild: true,
+          });
+          artifactSummary = gate.summary;
+          artifactPath = "index.html";
+        } else if (current.phase === "eng") {
           const build = await runEngineeringBuild(this.env, {
             projectId: this.state.projectId,
             title: this.state.title,
