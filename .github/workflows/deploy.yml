@@ -59,7 +59,7 @@ jobs:
         run: npm run build -w @teamvinsible/web
         env:
           VITE_USE_MOCK: "false"
-          VITE_API_ORIGIN: https://teamvinsible-api.teamvinsible.workers.dev
+          VITE_API_ORIGIN: https://api.teamvinsible.com
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
       - name: Deploy web to Pages

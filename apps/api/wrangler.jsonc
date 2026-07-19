@@ -4,6 +4,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-19",
   "compatibility_flags": ["nodejs_compat"],
+  // Keep the workers.dev URL alive alongside the custom domain.
+  "workers_dev": true,
+  "routes": [
+    // API on its own hostname; custom domains auto-manage DNS.
+    { "pattern": "api.teamvinsible.com", "custom_domain": true },
+    // Published apps: {slug}.teamvinsible.com. Requires a proxied wildcard DNS
+    // record (* CNAME teamvinsible-api.teamvinsible.workers.dev). www is
+    // exempted via a null route so Pages serves it.
+    { "pattern": "*.teamvinsible.com/*", "zone_name": "teamvinsible.com" }
+  ],
   "vars": {
     "ENVIRONMENT": "production",
     "PLATFORM_HOST": "teamvinsible.com",
