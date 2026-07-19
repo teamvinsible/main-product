@@ -97,10 +97,25 @@ const TOOLS = [
 ];
 
 function safeRel(p: unknown) {
-  const cleaned = String(p || "")
+  let cleaned = String(p || "")
+    .replace(/\\/g, "/")
+    .replace(/^[a-zA-Z]:\//, "")
     .replace(/^\/+/, "")
-    .replace(/\\/g, "/");
+    .replace(/^(home\/[^/]+\/)+/i, "")
+    .replace(/^(Users\/[^/]+\/)+/i, "")
+    .replace(/^(\.\/)+/, "");
   if (!cleaned || cleaned.includes("..")) return null;
+  const base = cleaned.split("/").pop() || cleaned;
+  const rootAssets = new Set([
+    "index.html",
+    "styles.css",
+    "style.css",
+    "app.js",
+    "main.js",
+    "script.js",
+    "package.json",
+  ]);
+  if (rootAssets.has(base.toLowerCase()) && cleaned.includes("/")) return base;
   return cleaned;
 }
 

@@ -215,6 +215,109 @@ export function fetchSpine(project?: string, opts?: { force?: boolean }) {
   return inflight;
 }
 
+export type SpineStreamHandlers = {
+  onSpine: (spine: SpineSnapshot) => void;
+  onEnd?: (reason: string) => void;
+  onError?: (err: Error) => void;
+};
+
+function parseSseChunk(
+  buffer: string,
+  onEvent: (event: string, data: string, id?: string) => void,
+): string {
+  const parts = buffer.split("\n\n");
+  const rest = parts.pop() ?? "";
+  for (const block of parts) {
+    if (!block.trim() || block.startsWith(":")) continue;
+    let event = "message";
+    let data = "";
+    let id: string | undefined;
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) data += (data ? "\n" : "") + line.slice(5).trimStart();
+      else if (line.startsWith("id:")) id = line.slice(3).trim();
+    }
+    if (data) onEvent(event, data, id);
+  }
+  return rest;
+}
+
+/**
+ * Live spine updates via SSE (Bearer auth — not EventSource).
+ * Resolves when the stream ends (settled, abort, or error).
+ */
+export async function subscribeSpine(
+  project: string,
+  handlers: SpineStreamHandlers,
+  opts?: { signal?: AbortSignal },
+): Promise<void> {
+  if (isMockMode()) return;
+
+  const token = await resolveToken();
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(
+    `${API_BASE}/api/spine/stream?project=${encodeURIComponent(project)}`,
+    { headers, signal: opts?.signal },
+  );
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || res.statusText || "Spine stream unavailable");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let ended = false;
+
+  const handleEvent = (event: string, data: string) => {
+    if (event === "ping") return;
+    if (event === "end") {
+      ended = true;
+      let reason = "settled";
+      try {
+        reason = (JSON.parse(data) as { reason?: string }).reason || reason;
+      } catch {
+        /* keep default */
+      }
+      handlers.onEnd?.(reason);
+      return;
+    }
+    if (event !== "spine") return;
+    try {
+      const spine = JSON.parse(data) as SpineSnapshot;
+      const key = spineCacheKey(project);
+      spineCache.set(key, { data: spine, at: Date.now(), etag: spineCache.get(key)?.etag });
+      handlers.onSpine(spine);
+    } catch (err) {
+      handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
+  try {
+    while (!ended) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer = parseSseChunk(buffer + decoder.decode(value, { stream: true }), handleEvent);
+    }
+    buffer = parseSseChunk(buffer + decoder.decode(), handleEvent);
+  } catch (err) {
+    if (opts?.signal?.aborted) return;
+    const error = err instanceof Error ? err : new Error(String(err));
+    handlers.onError?.(error);
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export function submitIntake(body: {
   idea?: string;
   text?: string;

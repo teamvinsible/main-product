@@ -1,6 +1,7 @@
 import { Agent, callable, getAgentByName } from "agents";
 import type { Env } from "../env";
 import { runEngineeringBuild, writePhaseArtifact } from "../orchestrator/agent-runner";
+import { leadEnsureWorkspaceReady } from "../orchestrator/lead-gate";
 
 export type DomainAgentState = {
   role: string;
@@ -37,7 +38,45 @@ export class DomainAgent extends Agent<Env, DomainAgentState> {
     let path = `artifacts/${input.phase}.md`;
     let filesWritten: string[] = [];
 
-    if (input.role === "eng" || input.phase === "eng" || input.phase === "preview") {
+    // Lead / Mediator: completeness gate is the primary job before Ship.
+    if (input.phase === "lead" || input.label.toLowerCase().includes("consolidat")) {
+      const gate = await leadEnsureWorkspaceReady(this.env, {
+        projectId: input.projectId,
+        title: input.title,
+        brief: input.brief,
+        swarmName: input.swarmName,
+        allowRebuild: true,
+      });
+      summary = gate.summary;
+      filesWritten = gate.present;
+      path = "index.html";
+      await writePhaseArtifact(this.env, {
+        projectId: input.projectId,
+        phase: input.phase,
+        title: input.title,
+        brief: `${input.brief}\n\n## Lead gate\n${gate.summary}\n\nRequired: ${gate.required.join(", ")}\nPresent: ${gate.present.join(", ")}\nMissing: ${gate.missing.join(", ") || "none"}\nRepaired: ${gate.fixed.join("; ") || "none"}`,
+        label: input.label,
+      });
+    } else if (input.phase === "preview") {
+      // Ship: re-run Lead gate; rebuild if incomplete.
+      const gate = await leadEnsureWorkspaceReady(this.env, {
+        projectId: input.projectId,
+        title: input.title,
+        brief: input.brief,
+        swarmName: input.swarmName,
+        allowRebuild: true,
+      });
+      summary = gate.summary;
+      filesWritten = gate.present;
+      path = "index.html";
+      await writePhaseArtifact(this.env, {
+        projectId: input.projectId,
+        phase: input.phase,
+        title: input.title,
+        brief: `${input.brief}\n\n## Pre-ship gate\n${gate.summary}`,
+        label: input.label,
+      });
+    } else if (input.role === "eng" || input.phase === "eng") {
       const build = await runEngineeringBuild(this.env, {
         projectId: input.projectId,
         title: input.title,

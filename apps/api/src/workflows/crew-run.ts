@@ -18,7 +18,7 @@ const PHASES = [
   { stage: "drafting" as const, phase: "product", agentId: "product", label: "Product spec" },
   { stage: "cross-review" as const, phase: "design", agentId: "design", label: "Design review" },
   { stage: "cross-review" as const, phase: "eng", agentId: "eng", label: "Engineering plan" },
-  { stage: "consolidating" as const, phase: "lead", agentId: "mediator", label: "Consolidate" },
+  { stage: "consolidating" as const, phase: "lead", agentId: "mediator", label: "Lead completeness gate" },
   { stage: "ready" as const, phase: "preview", agentId: "eng", label: "Ship live" },
 ];
 
@@ -29,6 +29,9 @@ const PHASES = [
  * apply step never re-runs the (expensive, LLM-driven) agent work, and each
  * apply is idempotent: applyPhaseResult is keyed by phase, the D1 updates are
  * absolute values, and the completion notification uses a deterministic id.
+ *
+ * Lead phase owns the workspace completeness gate (required files present and
+ * linked) before Ship/publish.
  */
 export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
   async run(event: WorkflowEvent<CrewRunParams>, step: WorkflowStep) {
@@ -42,7 +45,13 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
         `phase:${phase.phase}`,
         { retries: { limit: 2, delay: "5 seconds", backoff: "linear" } },
         async () => {
-          const role = phase.agentId === "mediator" ? "product" : phase.agentId;
+          // Lead phase must run as the Mediator completeness gate, not product.
+          const role =
+            phase.phase === "lead"
+              ? "mediator"
+              : phase.agentId === "mediator"
+                ? "product"
+                : phase.agentId;
           const agent = await getDomainAgent(this.env, params.projectId, role);
           const phaseResult = await agent.runPhase({
             role,
@@ -106,20 +115,23 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
           "publish-live",
           { retries: { limit: 2, delay: "5 seconds", backoff: "linear" } },
           async () => {
-            // Ensure a static app exists before publishing.
-            if (this.env.WORKSPACES) {
-              const existing = await this.env.WORKSPACES.head(
-                `workspaces/${params.projectId}/index.html`,
-              );
-              if (!existing) {
-                const { scaffoldApp } = await import("../orchestrator/agent-runner");
-                await scaffoldApp(this.env, {
+            const { leadEnsureWorkspaceReady } = await import("../orchestrator/lead-gate");
+            const gate = await leadEnsureWorkspaceReady(this.env, {
+              projectId: params.projectId,
+              title: params.title,
+              brief: params.brief,
+              swarmName: params.swarmName,
+              allowRebuild: true,
+            });
+            if (!gate.ready) {
+              console.warn(
+                JSON.stringify({
+                  event: "lead_gate.pre_publish_incomplete",
                   projectId: params.projectId,
-                  title: params.title,
-                  brief: params.brief,
-                  swarmName: params.swarmName,
-                });
-              }
+                  missing: gate.missing,
+                  weak: gate.summary,
+                }),
+              );
             }
 
             const { autoPublishProject } = await import("../orchestrator/auto-publish");
@@ -140,7 +152,11 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
                 severity: "success",
                 title: "App is live",
                 message: published.url,
-                metadata: { url: published.url, slug: published.slug },
+                metadata: {
+                  url: published.url,
+                  slug: published.slug,
+                  leadGate: gate.summary,
+                },
               });
             }
 
@@ -148,6 +164,7 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
               ok: Boolean(published?.ok),
               url: published?.url || null,
               message: published?.message || null,
+              gateReady: gate.ready,
             };
           },
         );

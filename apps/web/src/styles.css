@@ -656,7 +656,7 @@ a:hover {
 }
 
 .spine-shell.has-sidebar {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, min(460px, 34vw));
+  grid-template-columns: minmax(0, 1fr) minmax(320px, min(560px, 42vw));
 }
 
 .spine-shell > .spine-bento {
@@ -3603,6 +3603,43 @@ a:hover {
   color: var(--ink-2);
 }
 
+.artifact-doc {
+  margin: 12px 0 16px;
+  min-width: 0;
+}
+
+.artifact-html-frame {
+  display: block;
+  width: 100%;
+  min-height: 420px;
+  height: min(70vh, 640px);
+  border: 1px solid var(--glass-border-soft);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.artifact-code-block {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  max-height: min(70vh, 640px);
+  border: 1px solid var(--glass-border-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-solid) 92%, black);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  color: var(--ink);
+}
+
+.artifact-code-block code {
+  font: inherit;
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
 .markdown-doc > :first-child {
   margin-top: 0;
 }
@@ -6023,7 +6060,7 @@ a:hover {
 .legal-aside nav a { padding: 0.9rem 0; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-size: 0.8rem; }
 .legal-aside nav a:hover,
 .legal-aside nav a.is-active { color: var(--ink); }
-.legal-aside nav a.is-active::before { content: "â??"; margin-right: 0.5rem; color: var(--blue); }
+.legal-aside nav a.is-active::before { content: "???"; margin-right: 0.5rem; color: var(--blue); }
 
 .legal-document { min-width: 0; }
 .legal-title-block { padding-bottom: 4rem; border-bottom: 1px solid var(--line-2); }
@@ -6106,7 +6143,7 @@ a:hover {
   position: fixed;
   inset: var(--header-h) 0 0 auto;
   z-index: 80;
-  width: min(420px, 34vw);
+  width: min(560px, 42vw);
   height: auto;
   min-height: 0;
   max-height: none;
@@ -6994,7 +7031,7 @@ a:hover {
 
   .spine-shell.has-sidebar .push-sidebar {
     inset: var(--header-h) 0 0 auto;
-    width: min(390px, 94vw);
+    width: min(520px, 94vw);
     filter: drop-shadow(-18px 0 34px rgba(0, 0, 0, 0.34));
     animation-name: dashboardSidebarInRight;
   }
@@ -7037,7 +7074,7 @@ a:hover {
 
   .spine-shell.has-sidebar .push-sidebar {
     inset: var(--header-h) 0 0 auto;
-    width: min(390px, 94vw);
+    width: min(520px, 94vw);
     height: auto;
     min-height: 0;
     max-height: none;
@@ -7067,7 +7104,7 @@ a:hover {
   }
 }
 
-/* Brand loader â?? the logo mark drawing itself in a loop */
+/* Brand loader ??? the logo mark drawing itself in a loop */
 .brand-loader {
   display: grid;
   place-items: center;
