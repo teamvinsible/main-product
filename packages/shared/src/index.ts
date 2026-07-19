@@ -115,9 +115,20 @@ export interface SpecCard {
   title: string;
   status: SpecStatus;
   owner: string;
+  /** ISO-8601 timestamp when known; legacy rows may be display strings. */
   updatedAt: string;
   summary: string;
   path?: string;
+}
+
+/** Generated app/workspace file shown in the Files tab (not a planning artifact). */
+export interface WorkspaceFileCard {
+  id: string;
+  title: string;
+  path: string;
+  owner: string;
+  updatedAt: string;
+  summary?: string;
 }
 
 export interface ActivityItem {
@@ -163,6 +174,8 @@ export interface SpineSnapshot {
   revisionLoop?: RevisionLoop;
   dataFlows: DataFlowEdge[];
   specs: SpecCard[];
+  /** App/workspace code files (html, css, js, …) — separate from planning artifacts */
+  files?: WorkspaceFileCard[];
   /** Spec currently highlighted in the preview pane */
   activeSpecId?: string;
   activeQuestion?: ActiveQuestion | null;
@@ -250,3 +263,10 @@ export interface AuthUser {
   displayName: string | null;
   avatarUrl: string | null;
 }
+
+export {
+  isArtifactDocPath,
+  isWorkspaceFilePath,
+  workspaceFileTitle,
+} from "./artifacts";
+

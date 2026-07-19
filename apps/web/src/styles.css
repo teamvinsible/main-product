@@ -1436,12 +1436,13 @@ a:hover {
   min-width: 0;
   min-height: 48px;
   overflow: hidden;
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, border-radius 0.16s ease;
 }
 
 .brief-row.is-open {
-  padding-bottom: 14px;
+  padding-bottom: 12px;
   overflow: visible;
+  border-radius: var(--radius) var(--radius) 0 0;
   background: var(--surface-solid);
   background-image: var(--glass-gradient);
   box-shadow:
@@ -1465,6 +1466,7 @@ a:hover {
   row-gap: 8px;
   width: 100%;
   min-width: 0;
+  min-height: 28px;
 }
 
 .brief-toggle {
@@ -1545,10 +1547,17 @@ a:hover {
   margin-left: 0;
 }
 
+.brief-actions .layout-actions {
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--glass-border-soft);
+}
+
 .brief-expanded .brief-text {
   white-space: normal;
   color: var(--ink);
   max-width: 72ch;
+  margin: 0;
 }
 
 .brief-meta {
@@ -1557,6 +1566,7 @@ a:hover {
   gap: 8px 28px;
   margin: 12px 0 0;
   padding: 0;
+  width: 100%;
 }
 
 .brief-meta dt {
@@ -2668,6 +2678,13 @@ a:hover {
     width: 100%;
     justify-self: stretch;
     justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .brief-actions .layout-actions {
+    margin-left: auto;
+    padding-left: 0;
+    border-left: 0;
   }
 
   .brief-meta {
@@ -6476,19 +6493,22 @@ a:hover {
 .brief-row.is-open {
   padding-bottom: 12px;
   overflow: visible;
+  border-bottom-color: transparent;
   box-shadow: var(--glass-shadow), 0 10px 26px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .brief-row.is-open .brief-expanded {
   position: absolute;
-  top: calc(100% - 1px);
+  top: 100%;
+  /* Overlap parent border so the open panel reads as one card */
   right: -1px;
   left: -1px;
-  margin-top: 0;
-  padding: 12px 16px 14px;
+  margin-top: -1px;
+  /* 17px = brief-row 16px padding + 1px border overlap */
+  padding: 12px 17px 14px;
   border: 1px solid var(--glass-border);
-  border-top-color: var(--glass-border-soft);
-  border-radius: 0 0 18px 18px;
+  border-top: 1px solid var(--glass-border-soft);
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--surface-solid);
   background-image: var(--glass-gradient);
   box-shadow: 0 18px 38px color-mix(in srgb, var(--ink) 18%, transparent);
@@ -6734,17 +6754,15 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--bento-gap);
+  display: block;
   min-width: 0;
+  width: 100%;
 }
 
 .bento-topline > .brief-row {
   position: relative;
   z-index: 1;
-  width: auto;
+  width: 100%;
   height: auto;
   min-width: 0;
   align-self: start;
@@ -6759,7 +6777,7 @@ a:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  min-height: 54px;
+  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -7044,17 +7062,6 @@ a:hover {
 }
 
 @media (max-width: 600px) {
-  .bento-topline {
-    gap: 8px;
-    /* Stack: brief row on top, arrange-cards controls on their own row below */
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .layout-actions {
-    min-height: 0;
-    justify-content: flex-end;
-  }
-
   .layout-edit-button.ant-btn {
     padding-inline: 10px;
   }
@@ -7063,13 +7070,19 @@ a:hover {
     padding-inline: 5px;
   }
 
+  .brief-actions .layout-actions {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
   .brief-row.is-open {
     padding-bottom: 8px;
   }
 
   .brief-row.is-open .brief-expanded {
-    padding: 10px 12px 12px;
-    border-radius: 0 0 16px 16px;
+    /* Match .brief-row padding at ?600px (10px) + 1px border overlap */
+    padding: 10px 11px 12px;
   }
 
   .spine-shell.has-sidebar .push-sidebar {

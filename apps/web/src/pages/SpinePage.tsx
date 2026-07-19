@@ -16,6 +16,7 @@ import type {
   SpecCard,
   SpineSnapshot,
   SpineStage,
+  WorkspaceFileCard,
 } from "@teamvinsible/shared";
 import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, skipAgent, startPreview, subscribeSpine } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
@@ -36,15 +37,16 @@ import {
   SPEC_ICONS,
 } from "../components/icons";
 import { formatStatusLabel, specStatusMeta } from "../lib/status";
+import { formatRelativeTime } from "../lib/time";
 
 const STAGES: { key: SpineStage; label: string; num: number }[] = [
-  { key: "drafting", label: "Drafting", num: 1 },
-  { key: "cross-review", label: "Cross-review", num: 2 },
-  { key: "consolidating", label: "Consolidating", num: 3 },
-  { key: "ready", label: "Ready", num: 4 },
+  { key: "drafting", label: "Strategy & design", num: 1 },
+  { key: "cross-review", label: "Architecture & build", num: 2 },
+  { key: "consolidating", label: "Quality & DevOps", num: 3 },
+  { key: "ready", label: "Launch & growth", num: 4 },
 ];
 
-type SideTab = "specs" | "decisions";
+type SideTab = "specs" | "files" | "decisions";
 type BottomTab = "activity" | "next";
 type BentoCardId = "orchestrator" | "artifacts" | "health" | "preview" | "focus" | "activity";
 
@@ -186,6 +188,8 @@ type ModalKind =
   | { type: "agent"; id: string }
   | { type: "specs" }
   | { type: "spec"; id: string }
+  | { type: "files" }
+  | { type: "file"; id: string }
   | { type: "activity" }
   | { type: "health" }
   | { type: "next" }
@@ -213,19 +217,19 @@ function decisionStatusLabel(status: DecisionItem["status"]) {
 }
 
 const ACTIVITY_STAGES = [
-  { key: "drafting", label: "Drafting" },
-  { key: "cross-review", label: "Cross-review" },
-  { key: "consolidating", label: "Consolidating" },
-  { key: "ready", label: "Ready" },
+  { key: "drafting", label: "Strategy" },
+  { key: "cross-review", label: "Build" },
+  { key: "consolidating", label: "Quality" },
+  { key: "ready", label: "Launch" },
   { key: "other", label: "Other" },
 ] as const;
 
 function activityStage(item: ActivityItem): (typeof ACTIVITY_STAGES)[number]["key"] {
   const phase = (item.phase || "").toLowerCase();
-  if (phase === "drafting" || /research|product|intake|brief/.test(phase)) return "drafting";
-  if (phase === "cross-review" || /design|eng|review|qa/.test(phase)) return "cross-review";
-  if (phase === "consolidating" || /lead|mediator|consolidat/.test(phase)) return "consolidating";
-  if (phase === "ready" || /preview|publish|deploy|complete/.test(phase)) return "ready";
+  if (phase === "drafting" || /strategy|product|design|intake|brief|research/.test(phase)) return "drafting";
+  if (phase === "cross-review" || /architect|eng|backend|frontend|build/.test(phase)) return "cross-review";
+  if (phase === "consolidating" || /qa|devops|lead|mediator|consolidat/.test(phase)) return "consolidating";
+  if (phase === "ready" || /launch|growth|preview|publish|deploy|market|complete/.test(phase)) return "ready";
   return "other";
 }
 
@@ -250,7 +254,7 @@ function ActivityTerminal({ items, compact = false }: { items: ActivityItem[]; c
       <ol className="activity-terminal-body">
         {items.map((item) => (
           <li key={item.id}>
-            <time>{item.at}</time>
+            <time>{formatRelativeTime(item.at)}</time>
             <span className="activity-terminal-prompt">›</span>
             <span className={`activity-terminal-stage stage-${activityStage(item)}`}>
               {activityStage(item)}
@@ -592,14 +596,19 @@ export function SpinePage() {
     };
   }, [project, navigate]);
 
-  // Load artifact once per open spec/path — do not re-fetch when spine poll refreshes.
-  const openSpecId = modal?.type === "spec" ? modal.id : null;
-  const openSpecPath =
-    openSpecId && spine ? spine.specs.find((s) => s.id === openSpecId)?.path ?? null : null;
+  // Load artifact/file once per open path — do not re-fetch when spine updates.
+  const openDocId =
+    modal?.type === "spec" || modal?.type === "file" ? modal.id : null;
+  const openDocPath =
+    openDocId && spine
+      ? modal?.type === "file"
+        ? spine.files?.find((f) => f.id === openDocId)?.path ?? null
+        : spine.specs.find((s) => s.id === openDocId)?.path ?? null
+      : null;
   const artifactProjectId = spine?.project?.id || project || null;
 
   useEffect(() => {
-    if (!openSpecId) {
+    if (!openDocId) {
       setArtifactBody(null);
       setArtifactContentType(null);
       setArtifactError(null);
@@ -609,9 +618,11 @@ export function SpinePage() {
 
     let alive = true;
     const projectId = artifactProjectId;
-    const path = openSpecPath;
+    const path = openDocPath;
     const summaryFallback =
-      spineRef.current?.specs.find((s) => s.id === openSpecId)?.summary || "";
+      spineRef.current?.specs.find((s) => s.id === openDocId)?.summary ||
+      spineRef.current?.files?.find((f) => f.id === openDocId)?.summary ||
+      "";
 
     setArtifactBody(null);
     setArtifactContentType(null);
@@ -643,7 +654,7 @@ export function SpinePage() {
     return () => {
       alive = false;
     };
-  }, [openSpecId, openSpecPath, artifactProjectId]);
+  }, [openDocId, openDocPath, artifactProjectId]);
 
   if (error && !spine) {
     return (
@@ -703,9 +714,12 @@ export function SpinePage() {
   const attentionSpecs = spine.specs.filter((spec) => spec.status === "needs-attention");
   const attentionAgents = spine.agents.filter((agent) => agent.signal === "revision");
   const previewDecisions = (spine.decisions || []).slice(0, 4);
+  const workspaceFiles = spine.files || [];
 
   const modalSpec: SpecCard | null =
     modal?.type === "spec" ? spine.specs.find((s) => s.id === modal.id) || null : null;
+  const modalFile: WorkspaceFileCard | null =
+    modal?.type === "file" ? workspaceFiles.find((f) => f.id === modal.id) || null : null;
   const modalDecision: DecisionItem | null =
     modal?.type === "decision"
       ? spine.decisions?.find((d) => d.id === modal.id) || null
@@ -767,11 +781,13 @@ export function SpinePage() {
               {STAGES.map((s, i) => {
                 const cls = i < stageIndex ? "done" : i === stageIndex ? "active" : "";
                 const short =
-                  s.key === "cross-review"
-                    ? "Review"
-                    : s.key === "consolidating"
-                      ? "Merge"
-                      : s.label;
+                  s.key === "drafting"
+                    ? "Strategy"
+                    : s.key === "cross-review"
+                      ? "Build"
+                      : s.key === "consolidating"
+                        ? "QA"
+                        : "Launch";
                 const isReadyDone = s.key === "ready" && (cls === "done" || cls === "active");
                 const liveHref =
                   isReadyDone && (publishUrl || spine.previewUrl)
@@ -801,6 +817,31 @@ export function SpinePage() {
                 );
               })}
             </div>
+            <div className="layout-actions">
+              <Button
+                type={layoutEditing ? "primary" : "default"}
+                size="small"
+                className="layout-edit-button"
+                onClick={() => {
+                  setLayoutEditing((editing) => !editing);
+                  finishCardDrag();
+                }}
+                aria-pressed={layoutEditing}
+              >
+                {layoutEditing ? "Done" : "Arrange"}
+              </Button>
+              {layoutEditing &&
+              bentoOrder.some((id, index) => id !== DEFAULT_BENTO_ORDER[index]) ? (
+                <Button
+                  type="text"
+                  size="small"
+                  className="layout-reset-button"
+                  onClick={resetBentoOrder}
+                >
+                  Reset
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -816,35 +857,14 @@ export function SpinePage() {
               </div>
               <div>
                 <dt>Stage</dt>
-                <dd>{spine.project.stage}</dd>
+                <dd>{formatStatusLabel(spine.project.stage)}</dd>
               </div>
               <div>
                 <dt>Updated</dt>
-                <dd>{spine.project.updatedAt}</dd>
+                <dd>{formatRelativeTime(spine.project.updatedAt)}</dd>
               </div>
             </dl>
           </div>
-        ) : null}
-      </div>
-
-      <div className="layout-actions">
-        <Button
-          type={layoutEditing ? "primary" : "default"}
-          size="small"
-          className="layout-edit-button"
-          onClick={() => {
-            setLayoutEditing((editing) => !editing);
-            finishCardDrag();
-          }}
-          aria-pressed={layoutEditing}
-        >
-          {layoutEditing ? "Done" : "Arrange cards"}
-        </Button>
-        {layoutEditing &&
-        bentoOrder.some((id, index) => id !== DEFAULT_BENTO_ORDER[index]) ? (
-          <Button type="text" size="small" className="layout-reset-button" onClick={resetBentoOrder}>
-            Reset
-          </Button>
         ) : null}
       </div>
       </div>
@@ -917,6 +937,7 @@ export function SpinePage() {
               onChange={setSideTab}
               tabs={[
                 { id: "specs", label: "Artifacts", count: spine.specs.length || undefined },
+                { id: "files", label: "Files", count: workspaceFiles.length || undefined },
                 {
                   id: "decisions",
                   label: "Decisions",
@@ -927,7 +948,12 @@ export function SpinePage() {
                 <TabExpandButton
                   onClick={() =>
                     setModal({
-                      type: sideTab === "specs" ? "specs" : "decisions",
+                      type:
+                        sideTab === "specs"
+                          ? "specs"
+                          : sideTab === "files"
+                            ? "files"
+                            : "decisions",
                     })
                   }
                 />
@@ -937,7 +963,7 @@ export function SpinePage() {
             <div className="tab-pane">
               {sideTab === "specs" &&
                 (spine.specs.length === 0 ? (
-                  <p className="muted empty-pane">Artifacts appear here as agents complete work.</p>
+                  <p className="muted empty-pane">Planning docs appear here as agents complete work.</p>
                 ) : (
                   <ul className="specs-rail specs-rail-full">
                     {spine.specs.map((spec) => {
@@ -961,7 +987,7 @@ export function SpinePage() {
                                 <span className={`spec-badge ${b.cls}`}>{b.label}</span>
                                 <span className="muted">
                                   {spec.owner}
-                                  {spec.updatedAt ? ` · ${spec.updatedAt}` : ""}
+                                  {spec.updatedAt ? ` · ${formatRelativeTime(spec.updatedAt)}` : ""}
                                 </span>
                               </span>
                             </span>
@@ -969,6 +995,38 @@ export function SpinePage() {
                         </li>
                       );
                     })}
+                  </ul>
+                ))}
+
+              {sideTab === "files" &&
+                (workspaceFiles.length === 0 ? (
+                  <p className="muted empty-pane">App files appear here after engineering builds the workspace.</p>
+                ) : (
+                  <ul className="specs-rail specs-rail-full">
+                    {workspaceFiles.map((file) => (
+                      <li key={file.id}>
+                        <button
+                          type="button"
+                          className={`spec-rail-item is-button ${
+                            modal?.type === "file" && modal.id === file.id ? "is-selected" : ""
+                          }`}
+                          onClick={() => setModal({ type: "file", id: file.id })}
+                        >
+                          <span className="spec-icon">
+                            <IconDoc size={14} />
+                          </span>
+                          <span className="spec-rail-copy">
+                            <span className="spec-rail-title">{file.title}</span>
+                            <span className="spec-rail-meta">
+                              <span className="muted">
+                                {file.path}
+                                {file.updatedAt ? ` · ${formatRelativeTime(file.updatedAt)}` : ""}
+                              </span>
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 ))}
 
@@ -1091,7 +1149,7 @@ export function SpinePage() {
                   <span className="status-dot attention" />
                   <span className="focus-list-copy">
                     <strong>{spec.title}</strong>
-                    <span>{spec.owner} · {spec.updatedAt}</span>
+                    <span>{spec.owner} · {formatRelativeTime(spec.updatedAt)}</span>
                   </span>
                   <span className="focus-list-action">Review</span>
                 </button>
@@ -1139,8 +1197,12 @@ export function SpinePage() {
               ? modalAgent.label
               : modal?.type === "spec" && modalSpec
                 ? modalSpec.title
+                : modal?.type === "file" && modalFile
+                  ? modalFile.title
                 : modal?.type === "specs"
                   ? "Artifacts"
+                  : modal?.type === "files"
+                    ? "Files"
                   : modal?.type === "activity"
                     ? "Activity log"
                     : modal?.type === "health"
@@ -1160,8 +1222,12 @@ export function SpinePage() {
               ? `${modalAgent.label} · ${signalText(modalAgent.signal)}`
               : modal?.type === "spec" && modalSpec
                 ? `${modalSpec.owner} · ${specStatusMeta(modalSpec.status).label}`
+                : modal?.type === "file" && modalFile
+                  ? modalFile.path
                 : modal?.type === "specs"
-                  ? `${spine.specs.length} files`
+                  ? `${spine.specs.length} planning docs`
+                  : modal?.type === "files"
+                    ? `${workspaceFiles.length} workspace files`
                   : modal?.type === "activity"
                     ? spine.live ? "Live stream" : "Recent events"
                     : modal?.type === "health"
@@ -1239,7 +1305,7 @@ export function SpinePage() {
                 {specStatusMeta(modalSpec.status).label}
               </span>
               {modalSpec.path ? <p className="spec-preview-path">{modalSpec.path}</p> : null}
-              <p className="muted">Updated {modalSpec.updatedAt} · {modalSpec.owner}</p>
+              <p className="muted">Updated {formatRelativeTime(modalSpec.updatedAt)} · {modalSpec.owner}</p>
               {artifactLoading && !artifactBody ? (
                 <p className="muted">Loading artifact…</p>
               ) : (
@@ -1261,8 +1327,42 @@ export function SpinePage() {
               {spine.specs.map((spec) => (
                 <li key={spec.id}>
                   <button type="button" className="modal-spec-row" onClick={() => setModal({ type: "spec", id: spec.id })}>
-                    <span><strong>{spec.title}</strong><small>{spec.owner} · {spec.updatedAt}</small></span>
+                    <span><strong>{spec.title}</strong><small>{spec.owner} · {formatRelativeTime(spec.updatedAt)}</small></span>
                     <span className={`spec-badge ${specStatusMeta(spec.status).cls}`}>{specStatusMeta(spec.status).label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {(modal?.type === "files" || modal?.type === "file") ? (
+          modalFile ? (
+            <div className="modal-spec-detail">
+              <p className="spec-preview-path">{modalFile.path}</p>
+              <p className="muted">Updated {formatRelativeTime(modalFile.updatedAt)} · {modalFile.owner}</p>
+              {artifactLoading && !artifactBody ? (
+                <p className="muted">Loading file…</p>
+              ) : (
+                <ArtifactDoc
+                  content={artifactBody || modalFile.summary || ""}
+                  contentType={artifactContentType}
+                  path={modalFile.path}
+                />
+              )}
+              {artifactError ? (
+                <p className="muted" style={{ marginTop: 8 }}>
+                  Showing summary — full file unavailable ({artifactError}).
+                </p>
+              ) : null}
+              <Button size="small" onClick={() => setModal({ type: "files" })}>All files</Button>
+            </div>
+          ) : (
+            <ul className="modal-spec-list">
+              {workspaceFiles.map((file) => (
+                <li key={file.id}>
+                  <button type="button" className="modal-spec-row" onClick={() => setModal({ type: "file", id: file.id })}>
+                    <span><strong>{file.title}</strong><small>{file.path} · {formatRelativeTime(file.updatedAt)}</small></span>
                   </button>
                 </li>
               ))}
