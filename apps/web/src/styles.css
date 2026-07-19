@@ -3596,6 +3596,116 @@ a:hover {
   white-space: pre-wrap;
 }
 
+.markdown-doc {
+  margin: 12px 0 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.markdown-doc > :first-child {
+  margin-top: 0;
+}
+
+.markdown-doc > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-doc h1,
+.markdown-doc h2,
+.markdown-doc h3,
+.markdown-doc h4 {
+  margin: 1.1em 0 0.45em;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.markdown-doc h1 { font-size: 1.35rem; }
+.markdown-doc h2 { font-size: 1.18rem; }
+.markdown-doc h3 { font-size: 1.05rem; }
+.markdown-doc h4 { font-size: 0.98rem; }
+
+.markdown-doc p {
+  margin: 0.65em 0;
+}
+
+.markdown-doc ul,
+.markdown-doc ol {
+  margin: 0.55em 0;
+  padding-left: 1.35em;
+}
+
+.markdown-doc li + li {
+  margin-top: 0.25em;
+}
+
+.markdown-doc strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.markdown-doc a {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-doc blockquote {
+  margin: 0.85em 0;
+  padding: 0.35em 0 0.35em 0.9em;
+  border-left: 3px solid var(--line-2);
+  color: var(--ink-3);
+}
+
+.markdown-doc code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.markdown-doc pre {
+  margin: 0.85em 0;
+  padding: 0.85em 1em;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.markdown-doc pre code {
+  padding: 0;
+  background: none;
+}
+
+.markdown-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.85em 0;
+  font-size: 0.92em;
+}
+
+.markdown-doc th,
+.markdown-doc td {
+  border: 1px solid var(--line-2);
+  padding: 0.4em 0.55em;
+  text-align: left;
+}
+
+.markdown-doc th {
+  background: rgba(127, 127, 127, 0.08);
+  color: var(--ink);
+}
+
+.markdown-doc hr {
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  margin: 1.2em 0;
+}
+
 .modal-section-title {
   margin: 16px 0 8px;
   font-size: 11px;

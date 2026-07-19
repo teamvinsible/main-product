@@ -214,6 +214,30 @@ export function fetchPreview(projectId: string) {
   return req<PreviewStatus>(`/api/preview/${encodeURIComponent(projectId)}`);
 }
 
+/** Load a workspace artifact body (markdown/text) for the spec viewer. */
+export function fetchArtifact(project: string, path: string) {
+  if (isMockMode()) {
+    const spec = MOCK_SPINE.specs.find((s) => s.path === path);
+    const title = spec?.title || path.split("/").pop() || "Artifact";
+    const body = [
+      `# ${title}`,
+      "",
+      spec?.summary || "Demo artifact content.",
+      "",
+      "## Outline",
+      "",
+      "- Context and constraints",
+      "- Proposed approach",
+      "- Open questions",
+      "",
+      "> Set `VITE_USE_MOCK=false` to load live R2 artifacts.",
+    ].join("\n");
+    return Promise.resolve({ ok: true as const, path, content: body, contentType: "text/markdown" });
+  }
+  const q = `?project=${encodeURIComponent(project)}&path=${encodeURIComponent(path)}`;
+  return req<{ ok: boolean; path: string; content: string; contentType: string }>(`/api/artifact${q}`);
+}
+
 /** Ask the swarm control plane to skip an agent's phases (proxied via Workers API). */
 export function skipAgent(project: string, agentId: string) {
   if (isMockMode()) {

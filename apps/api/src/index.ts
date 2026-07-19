@@ -8,6 +8,7 @@ import {
   cfIntake,
   cfListProjects,
   cfLoadSpine,
+  cfReadArtifact,
   cfSetPreview,
   cfStartRun,
 } from "./orchestrator/cf";
@@ -72,6 +73,17 @@ async function handleAuthed(
     const requested = url.searchParams.get("project");
     const spine = await cfLoadSpine(env, auth, requested);
     return json(env, request, { activity: spine.activity, source: "cf" });
+  }
+
+  if (pathname === "/api/artifact" && request.method === "GET") {
+    const projectKey = url.searchParams.get("project");
+    const path = url.searchParams.get("path");
+    if (!projectKey || !path) throw new RequestError("project and path are required");
+    const artifact = await cfReadArtifact(env, auth, projectKey, path);
+    if (!artifact) {
+      return json(env, request, { ok: false, error: "Artifact not found" }, 404);
+    }
+    return json(env, request, { ok: true, ...artifact });
   }
 
   if (pathname === "/api/notifications" && request.method === "GET") {

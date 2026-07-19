@@ -392,3 +392,31 @@ export async function cfSetPreview(
     }
   }
 }
+
+/** Read a workspace artifact from R2 (path relative to the project workspace). */
+export async function cfReadArtifact(
+  env: Env,
+  auth: Authed,
+  projectKey: string,
+  relativePath: string,
+): Promise<{ path: string; content: string; contentType: string } | null> {
+  const project = await cfGetProject(env, auth.user.id, projectKey);
+  if (!project) return null;
+
+  const path = relativePath.replace(/^\/+/, "").replace(/\.\./g, "");
+  if (!path || path.includes("..")) return null;
+
+  if (!env.WORKSPACES) {
+    return null;
+  }
+
+  const obj = await env.WORKSPACES.get(`workspaces/${project.id}/${path}`);
+  if (!obj) return null;
+
+  const content = await obj.text();
+  const contentType =
+    obj.httpMetadata?.contentType ||
+    (path.endsWith(".md") ? "text/markdown" : path.endsWith(".html") ? "text/html" : "text/plain");
+
+  return { path, content, contentType };
+}

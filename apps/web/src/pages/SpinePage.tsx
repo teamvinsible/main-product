@@ -17,11 +17,12 @@ import type {
   SpineSnapshot,
   SpineStage,
 } from "@teamvinsible/shared";
-import { fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
+import { fetchArtifact, fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { HealthCard } from "../components/HealthCard";
+import { MarkdownDoc } from "../components/MarkdownDoc";
 import { OrchestratorHub } from "../components/OrchestratorHub";
 import { PreviewCard } from "../components/PreviewCard";
 import { PushSidebar } from "../components/PushSidebar";
@@ -280,6 +281,9 @@ export function SpinePage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishUrl, setPublishUrl] = useState<string | null>(null);
   const [skipBusy, setSkipBusy] = useState(false);
+  const [artifactBody, setArtifactBody] = useState<string | null>(null);
+  const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
   const [bentoOrder, setBentoOrder] = useState<BentoCardId[]>(readSavedBentoOrder);
   const [layoutEditing, setLayoutEditing] = useState(false);
   const [draggedCard, setDraggedCard] = useState<BentoCardId | null>(null);
@@ -460,6 +464,51 @@ export function SpinePage() {
       window.clearInterval(id);
     };
   }, [project, navigate]);
+
+  useEffect(() => {
+    if (modal?.type !== "spec" || !spine) {
+      setArtifactBody(null);
+      setArtifactError(null);
+      setArtifactLoading(false);
+      return;
+    }
+    const spec = spine.specs.find((s) => s.id === modal.id);
+    if (!spec) {
+      setArtifactBody(null);
+      setArtifactError(null);
+      setArtifactLoading(false);
+      return;
+    }
+
+    const projectId = spine.project?.id || project;
+    let alive = true;
+    setArtifactLoading(true);
+    setArtifactError(null);
+
+    const load = async () => {
+      try {
+        if (spec.path && projectId) {
+          const res = await fetchArtifact(projectId, spec.path);
+          if (!alive) return;
+          setArtifactBody(res.content);
+        } else {
+          setArtifactBody(spec.summary || "");
+        }
+      } catch (err) {
+        if (!alive) return;
+        // Fall back to the spine summary so the drawer never goes blank.
+        setArtifactBody(spec.summary || "");
+        setArtifactError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (alive) setArtifactLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [modal, spine, project]);
 
   if (error && !spine) {
     return (
@@ -1046,9 +1095,18 @@ export function SpinePage() {
               <span className={`spec-badge ${specStatusMeta(modalSpec.status).cls}`}>
                 {specStatusMeta(modalSpec.status).label}
               </span>
-              <p className="modal-prose">{modalSpec.summary}</p>
               {modalSpec.path ? <p className="spec-preview-path">{modalSpec.path}</p> : null}
-              <p className="muted">Updated {modalSpec.updatedAt}</p>
+              <p className="muted">Updated {modalSpec.updatedAt} · {modalSpec.owner}</p>
+              {artifactLoading ? (
+                <p className="muted">Loading artifact…</p>
+              ) : (
+                <MarkdownDoc content={artifactBody || modalSpec.summary || ""} />
+              )}
+              {artifactError ? (
+                <p className="muted" style={{ marginTop: 8 }}>
+                  Showing summary — full file unavailable ({artifactError}).
+                </p>
+              ) : null}
               <Button size="small" onClick={() => setModal({ type: "specs" })}>All artifacts</Button>
             </div>
           ) : (
