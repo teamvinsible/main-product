@@ -7,7 +7,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "PLATFORM_HOST": "teamvinsible.com",
-    "ALLOWED_ORIGINS": "https://teamvinsible.com,https://www.teamvinsible.com",
+    "ALLOWED_ORIGINS": "https://teamvinsible.com,https://www.teamvinsible.com,https://teamvinsible-web.pages.dev",
     "LEGACY_SWARM": "false",
     "DISPATCH_NAMESPACE": "teamvinsible-customers"
   },
@@ -15,7 +15,7 @@
     {
       "binding": "DB",
       "database_name": "teamvinsible",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "560872a4-850b-45c6-9794-22caa7695603",
       "migrations_dir": "migrations"
     }
   ],
@@ -60,9 +60,6 @@
   "containers": [
     { "class_name": "Sandbox", "image": "./Dockerfile", "instance_type": "lite", "max_instances": 5 },
     { "class_name": "SwarmRuntime", "image": "./Dockerfile.runtime", "instance_type": "basic", "max_instances": 10 }
-  ],
-  "dispatch_namespaces": [
-    { "binding": "DISPATCHER", "namespace": "teamvinsible-customers" }
   ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Sandbox", "MediatorAgent"] },

@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Guard — Cloudflare credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets to enable deploys."
+            exit 1
+          fi
+      - run: npm ci
+      - name: Typecheck + test API
+        run: |
+          npm run typecheck -w @teamvinsible/api
+          npm test -w @teamvinsible/api
+      - name: Deploy API Worker (with containers)
+        run: npm run deploy -w @teamvinsible/api
+      - name: Build web (live mode)
+        run: npm run build -w @teamvinsible/web
+        env:
+          VITE_USE_MOCK: "false"
+          VITE_API_ORIGIN: https://teamvinsible-api.teamvinsible.workers.dev
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - name: Deploy web to Pages
+        run: npx wrangler pages deploy apps/web/dist --project-name teamvinsible-web --branch main
