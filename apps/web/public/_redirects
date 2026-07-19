@@ -1,0 +1,6 @@
+/dashboard/* /dashboard.html 200
+/spine /dashboard.html 200
+/spine/* /dashboard.html 200
+/intake /dashboard.html 200
+/files /dashboard.html 200
+/files/* /dashboard.html 200

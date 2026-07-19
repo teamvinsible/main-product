@@ -1,0 +1,13 @@
+{
+  "name": "Teamvinsible",
+  "short_name": "Teamvinsible",
+  "description": "AI agent coordination from brief to publish.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0a08",
+  "theme_color": "#0b0a08",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

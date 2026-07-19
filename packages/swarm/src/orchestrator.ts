@@ -2991,6 +2991,7 @@ Operating guidance:
     this.lastNotifiedStatus = key;
     void notifyRunStatus({
       project: this.state.projectName,
+      runId: this.state.runId,
       status: this.state.status,
       phase: this.state.currentPhase,
     });

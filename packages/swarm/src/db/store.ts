@@ -1,6 +1,6 @@
-import { eq, ne, and, or, desc, asc, isNull } from "drizzle-orm";
+import { eq, ne, and, or, desc, asc, isNull, inArray } from "drizzle-orm";
 import { db } from "./client.js";
-import { projects, runs, logs, agentRuns, learnings, projectHistory, evals, commits, deployments, prompts, questions, chatMessages } from "./schema.js";
+import { projects, runs, logs, agentRuns, learnings, projectHistory, evals, commits, deployments, prompts, questions, chatMessages, notifications } from "./schema.js";
 import type { EvalCheck } from "./schema.js";
 import { isArtifactPathAllowed } from "../utils/artifacts.js";
 import type {
@@ -723,6 +723,81 @@ export async function getChatMessages(project: string): Promise<ChatMessage[]> {
   const rows = await db.select().from(chatMessages)
     .where(eq(chatMessages.project, project)).orderBy(asc(chatMessages.createdAt));
   return rows.map(rowToChatMessage);
+}
+
+export interface NotificationRecord {
+  id: string;
+  project: string;
+  runId?: string;
+  kind: string;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  readAt?: string;
+  createdAt: string;
+}
+
+export async function createNotification(input: Omit<NotificationRecord, "id" | "readAt" | "createdAt">): Promise<NotificationRecord> {
+  const [row] = await db.insert(notifications).values({
+    id: crypto.randomUUID(),
+    project: input.project,
+    runId: input.runId ?? null,
+    kind: input.kind,
+    severity: input.severity,
+    title: input.title,
+    message: input.message,
+    metadata: input.metadata,
+  }).returning();
+  if (!row) throw new Error("Failed to create notification");
+  return {
+    id: row.id,
+    project: row.project,
+    runId: row.runId ?? undefined,
+    kind: row.kind,
+    severity: row.severity as NotificationRecord["severity"],
+    title: row.title,
+    message: row.message,
+    metadata: row.metadata as Record<string, unknown>,
+    readAt: row.readAt?.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function listNotifications(options: { project?: string; unreadOnly?: boolean; limit?: number } = {}): Promise<NotificationRecord[]> {
+  const filters = [
+    options.project ? eq(notifications.project, options.project) : undefined,
+    options.unreadOnly ? isNull(notifications.readAt) : undefined,
+  ].filter((value): value is Exclude<typeof value, undefined> => Boolean(value));
+  const rows = await db.select().from(notifications)
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(desc(notifications.createdAt))
+    .limit(Math.min(Math.max(options.limit || 50, 1), 100));
+  return rows.map((row) => ({
+    id: row.id,
+    project: row.project,
+    runId: row.runId ?? undefined,
+    kind: row.kind,
+    severity: row.severity as NotificationRecord["severity"],
+    title: row.title,
+    message: row.message,
+    metadata: row.metadata as Record<string, unknown>,
+    readAt: row.readAt?.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+export async function markNotificationsRead(ids?: string[], project?: string): Promise<number> {
+  const filters = [
+    isNull(notifications.readAt),
+    project ? eq(notifications.project, project) : undefined,
+    ids?.length ? inArray(notifications.id, ids.slice(0, 100)) : undefined,
+  ].filter((value): value is Exclude<typeof value, undefined> => Boolean(value));
+  const rows = await db.update(notifications)
+    .set({ readAt: new Date() })
+    .where(and(...filters))
+    .returning({ id: notifications.id });
+  return rows.length;
 }
 
 // Answer or skip an OPEN question. `skip` records it as an explicit, reviewable

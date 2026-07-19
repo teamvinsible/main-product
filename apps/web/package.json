@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && vite build && node scripts/generate-seo-pages.mjs && node scripts/validate-seo.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "validate:seo": "node scripts/validate-seo.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@supabase/supabase-js": "^2.110.7",
     "@teamvinsible/shared": "*",
     "antd": "^6.5.1",
     "react": "^18.3.1",

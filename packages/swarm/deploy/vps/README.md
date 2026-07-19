@@ -37,16 +37,6 @@ Minimum: **2 GB RAM** (4 GB recommended for parallel agents + Docker).
 - **Auth:** SSH key only (disable password login)
 - **Hostname:** `agent-swarm`
 
-Optional with `doctl`:
-
-```bash
-doctl compute droplet create agent-swarm \
-  --image ubuntu-24-04-x64 \
-  --size s-1vcpu-2gb \
-  --region nyc1 \
-  --ssh-keys <your-key-fingerprint>
-```
-
 ### 2. DNS
 
 Create an **A record**: `swarm.yourdomain.com` → droplet IP.
@@ -88,9 +78,8 @@ Optional:
 
 ```env
 GITHUB_TOKEN=ghp_...
-SWARM_TELEGRAM_BOT_TOKEN=...
-SWARM_TELEGRAM_CHAT_ID=...
-SWARM_TELEGRAM_ALLOWED_USERS=123456789
+SWARM_NOTIFICATION_WEBHOOK_URL=https://notifications.example.com/swarm
+SWARM_NOTIFICATION_WEBHOOK_TOKEN=...
 SWARM_GITHUB_ALLOWED_REPOS=your-org/your-repo
 ```
 
@@ -122,9 +111,7 @@ Token is in `/opt/agent-swarm/.env`. Save it in a password manager — it gates 
 ### Authentication
 
 - [ ] `SWARM_DASHBOARD_TOKEN` — long random (installer generates)
-- [ ] `SWARM_TELEGRAM_WEBHOOK_SECRET` — set when registering Telegram webhook
 - [ ] `SWARM_GITHUB_WEBHOOK_SECRET` — matches GitHub webhook config
-- [ ] `SWARM_TELEGRAM_ALLOWED_USERS` — comma-separated Telegram user IDs
 - [ ] `SWARM_GITHUB_ALLOWED_REPOS` — repo allowlist
 
 ### SSH
@@ -163,16 +150,6 @@ tar czf /var/backups/swarm-workspaces-$(date +%F).tar.gz /opt/agent-swarm/.swarm
 
 ---
 
-## Telegram webhook (optional)
-
-```bash
-TOKEN=<SWARM_TELEGRAM_BOT_TOKEN>
-SECRET=<SWARM_TELEGRAM_WEBHOOK_SECRET from .env>
-curl "https://api.telegram.org/bot${TOKEN}/setWebhook" \
-  -d "url=https://swarm.yourdomain.com/api/webhooks/telegram" \
-  -d "secret_token=${SECRET}"
-```
-
 ## GitHub webhook (optional)
 
 Repo → Settings → Webhooks → Add:
@@ -195,7 +172,7 @@ Comment on an issue: `/swarm fix my-project Fix the login button`
    SWARM_GOOGLE_CHAT_ALLOWED_USERS=you@company.com
    SWARM_GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=...
    ```
-6. Commands: `/run`, `/change`, `/status`, `/resume` (same as Telegram).
+6. Commands: `/run`, `/change`, `/status`, `/resume`.
 
 ---
 

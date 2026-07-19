@@ -1,0 +1,6 @@
+{
+  "name": "teamvinsible-swarm-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {}
+}

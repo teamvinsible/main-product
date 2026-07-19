@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck API
+        run: npm run typecheck -w @teamvinsible/api
+      - name: Test API
+        run: npm test -w @teamvinsible/api
+      - name: Dry-run deploy (bundle check)
+        run: npm run build -w @teamvinsible/api

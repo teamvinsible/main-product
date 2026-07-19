@@ -1,5 +1,6 @@
-import { Badge, Button, Flex, Segmented } from "antd";
+import { Flex, Segmented } from "antd";
 import type { ReactNode } from "react";
+import { Button } from "antd";
 
 export interface TabItem<T extends string = string> {
   id: T;
@@ -12,7 +13,6 @@ interface Props<T extends string> {
   tabs: TabItem<T>[];
   value: T;
   onChange: (id: T) => void;
-  /** Extra controls on the right of the tab bar */
   trailing?: ReactNode;
   className?: string;
   size?: "sm" | "md";
@@ -43,8 +43,8 @@ export function SegmentedTabs<T extends string>({
           label: (
             <span className="seg-tab-label">
               <span>{tab.label}</span>
-              {typeof tab.count === "number" && (
-                <Badge count={tab.count} showZero={false} overflowCount={99} size="small" />
+              {typeof tab.count === "number" && tab.count > 0 && (
+                <span className="seg-tab-count">{tab.count}</span>
               )}
               {tab.badge}
             </span>
@@ -56,10 +56,9 @@ export function SegmentedTabs<T extends string>({
   );
 }
 
-/** Compact expand control used beside SegmentedTabs */
-export function TabExpandButton({ onClick, label = "Expand" }: { onClick: () => void; label?: string }) {
+export function TabExpandButton({ onClick, label = "View all" }: { onClick: () => void; label?: string }) {
   return (
-    <Button type="text" size="small" className="tab-expand-btn" onClick={onClick}>
+    <Button type="link" size="small" className="tab-expand-btn" onClick={onClick}>
       {label}
     </Button>
   );

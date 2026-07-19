@@ -1,240 +1,470 @@
-import type { SpineSnapshot } from "@teamvinsible/shared";
+import type { PlatformProject } from "@teamvinsible/shared";
+import { isAuthResponse, requireAuth, serviceClient, type Authed } from "./auth";
+import { createProject, getProfile, updateProjectPreview, memoryStore } from "./db";
+import { corsHeaders, isDevelopment, json, missingCoreBindings, useLegacySwarm, type Env } from "./env";
+import { d1ListNotifications, d1MarkNotificationsRead } from "./d1";
 import {
-  buildSpineSnapshot,
-  emptySpine,
-  toProjectList,
-  type SwarmAgentRun,
-  type SwarmArtifactFile,
-  type SwarmLog,
-  type SwarmRunGraph,
-  type SwarmState,
-} from "./spine-mapper";
+  cfGetProject,
+  cfIntake,
+  cfListProjects,
+  cfLoadSpine,
+  cfSetPreview,
+  cfStartRun,
+} from "./orchestrator/cf";
+import { maybeProxySandbox, startProjectPreview } from "./preview";
+import { publishProject, servePublished, slugFromHost } from "./publish";
+import { proxySwarm, swarmNameForUser } from "./swarm";
+import { readJsonObject, RequestError, slugField, stringField } from "./validation";
 
-export interface Env {
-  SWARM_ORIGIN: string;
-  PLATFORM_HOST: string;
-  DISPATCHER?: {
-    get(name: string): { fetch: typeof fetch };
-  };
+export { Sandbox } from "@cloudflare/sandbox";
+export { MediatorAgent } from "./agents/mediator";
+export { DomainAgent } from "./agents/domain-agent";
+export { SwarmRuntime } from "./containers/swarm-runtime";
+export { CrewRunWorkflow } from "./workflows/crew-run";
+export type { Env };
+
+function withCors(env: Env, request: Request, res: Response): Response {
+  const headers = new Headers(res.headers);
+  Object.entries(corsHeaders(env, request)).forEach(([k, v]) => headers.set(k, v));
+  return new Response(res.body, { status: res.status, headers });
 }
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...cors },
-  });
+async function enforceExpensiveRouteLimit(env: Env, auth: Authed, pathname: string): Promise<void> {
+  if (!env.RUN_RATE_LIMITER) {
+    if (!isDevelopment(env)) throw new RequestError("Rate limiting is unavailable", 503, "rate_limit_unavailable");
+    return;
+  }
+  const result = await env.RUN_RATE_LIMITER.limit({ key: `${auth.user.id}:${pathname}` });
+  if (!result.success) throw new RequestError("Too many requests. Try again shortly.", 429, "rate_limited");
 }
 
-async function proxySwarm(env: Env, path: string, init?: RequestInit): Promise<Response | null> {
-  try {
-    const res = await fetch(`${env.SWARM_ORIGIN}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
+async function handleAuthed(
+  request: Request,
+  env: Env,
+  auth: Authed,
+  pathname: string,
+  url: URL,
+): Promise<Response> {
+  if (pathname === "/api/me" && request.method === "GET") {
+    const db = serviceClient(env);
+    const profile = db ? await getProfile(db, auth.user.id) : null;
+    return json(env, request, {
+      user: {
+        ...auth.user,
+        displayName: profile?.display_name || auth.user.displayName,
+        avatarUrl: profile?.avatar_url || auth.user.avatarUrl,
+        email: profile?.email || auth.user.email,
       },
     });
-    return res;
-  } catch {
-    return null;
   }
-}
 
-async function swarmJson<T>(env: Env, path: string): Promise<T | null> {
-  const res = await proxySwarm(env, path);
-  if (!res?.ok) return null;
-  try {
-    return (await res.json()) as T;
-  } catch {
-    return null;
+  if (pathname === "/api/projects" && request.method === "GET") {
+    return json(env, request, await cfListProjects(env, auth.user.id));
   }
-}
 
-async function resolveProjectName(env: Env, requested: string | null): Promise<string | null> {
-  if (requested) return requested;
+  if (pathname === "/api/spine" && request.method === "GET") {
+    const requested = url.searchParams.get("project");
+    const spine = await cfLoadSpine(env, auth, requested);
+    return json(env, request, spine);
+  }
 
-  const running = await swarmJson<Array<{ name?: string }>>(env, "/api/running");
-  if (running?.length && running[0]?.name) return String(running[0].name);
+  if (pathname === "/api/spine/activity" && request.method === "GET") {
+    const requested = url.searchParams.get("project");
+    const spine = await cfLoadSpine(env, auth, requested);
+    return json(env, request, { activity: spine.activity, source: "cf" });
+  }
 
-  const projects = await swarmJson<Array<{ name?: string }>>(env, "/api/projects");
-  if (projects?.length && projects[0]?.name) return String(projects[0].name);
-
-  return null;
-}
-
-async function loadSpine(env: Env, projectName: string | null): Promise<SpineSnapshot> {
-  const config = await proxySwarm(env, "/api/config");
-  const swarmOnline = Boolean(config?.ok);
-
-  const projectRows = swarmOnline
-    ? (await swarmJson<Array<{ name?: string; state?: SwarmState }>>(env, "/api/projects")) || []
-    : [];
-  const projects = toProjectList(projectRows);
-
-  if (!swarmOnline) {
-    return emptySpine({
-      swarmOnline: false,
-      projects: [],
-      message: "Swarm control plane offline. Run npm run dev:swarm to stream live coordination.",
+  if (pathname === "/api/notifications" && request.method === "GET") {
+    if (!env.DB) throw new RequestError("Notifications are unavailable", 503, "storage_unavailable");
+    const unreadOnly = url.searchParams.get("unread") === "true";
+    const notifications = await d1ListNotifications(env, auth.user.id, { unreadOnly });
+    return json(env, request, {
+      notifications: notifications.map((item) => ({
+        ...item,
+        metadata: JSON.parse(item.metadata || "{}") as unknown,
+        read: Boolean(item.read_at),
+      })),
+      unread: notifications.filter((item) => !item.read_at).length,
     });
   }
 
-  if (!projectName) {
-    return emptySpine({ swarmOnline: true, projects });
+  if (pathname === "/api/notifications/read" && request.method === "POST") {
+    if (!env.DB) throw new RequestError("Notifications are unavailable", 503, "storage_unavailable");
+    const body = await readJsonObject(request, 16 * 1024);
+    const ids = body.ids === undefined
+      ? undefined
+      : Array.isArray(body.ids)
+        ? body.ids.filter((id): id is string => typeof id === "string").slice(0, 100)
+        : null;
+    if (ids === null) throw new RequestError("ids must be an array of notification IDs");
+    const updated = await d1MarkNotificationsRead(env, auth.user.id, ids);
+    return json(env, request, { ok: true, updated });
   }
 
-  const stateRaw = await swarmJson<SwarmState>(
-    env,
-    `/api/state?project=${encodeURIComponent(projectName)}`,
-  );
+  if (pathname === "/api/intake" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const payload = await readJsonObject(request);
+    const idea = stringField(payload, ["idea", "text"], { required: true, maxLength: 20_000 });
 
-  if (!stateRaw || (stateRaw as { status?: string }).status === "waiting") {
-    return emptySpine({
-      swarmOnline: true,
-      projects,
-      message: `No swarm state found for “${projectName}”. Launch a run from New brief.`,
+    if (useLegacySwarm(env)) {
+      const swarmRes = await proxySwarm(env, "/api/intake", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (swarmRes?.ok) {
+        return withCors(env, request, swarmRes);
+      }
+    }
+
+    const plan = await cfIntake(env, auth, {
+      idea,
+      kind: stringField(payload, "kind", { maxLength: 40 }) || undefined,
+      url: stringField(payload, "url", { maxLength: 2_048 }) || undefined,
+    });
+    return json(env, request, plan);
+  }
+
+  if (pathname === "/api/run" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const payload = await readJsonObject(request);
+    const idea = stringField(payload, ["idea", "text"], { required: true, maxLength: 20_000 });
+    const suggested = stringField(payload, ["name", "suggestedName"], { maxLength: 80, fallback: "project" });
+
+    if (useLegacySwarm(env)) {
+      const swarmName = swarmNameForUser(auth.user.id, suggested);
+      const db = serviceClient(env);
+      let project: PlatformProject;
+      try {
+        project = db
+          ? await createProject(db, {
+              userId: auth.user.id,
+              swarmName,
+              title: suggested,
+              brief: idea,
+              status: "running",
+            })
+          : isDevelopment(env) ? memoryStore.create({
+              userId: auth.user.id,
+              swarmName,
+              title: suggested,
+              brief: idea,
+              status: "running",
+            }) : (() => { throw new Error("Persistent project storage is unavailable"); })();
+      } catch (err) {
+        return json(env, request, { ok: false, error: String(err) }, 400);
+      }
+      const swarmRes = await proxySwarm(env, "/api/run", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, name: swarmName, idea }),
+      });
+      if (swarmRes?.ok) {
+        const body = (await swarmRes.json().catch(() => ({}))) as Record<string, unknown>;
+        return json(env, request, {
+          ok: true,
+          name: swarmName,
+          swarmName,
+          projectId: project.id,
+          pid: body.pid,
+        });
+      }
+    }
+
+    try {
+      const result = await cfStartRun(env, auth, {
+        idea,
+        name: suggested,
+        type: stringField(payload, "type", { maxLength: 40 }) || undefined,
+      });
+      return json(env, request, result);
+    } catch (err) {
+      return json(env, request, { ok: false, error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  }
+
+  if (pathname === "/api/preview" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 16 * 1024);
+    const key = stringField(body, ["projectId", "project"], { required: true, maxLength: 100 });
+    if (!key) return json(env, request, { ok: false, error: "project required" }, 400);
+    const project = await cfGetProject(env, auth.user.id, key);
+    if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
+
+    const result = await startProjectPreview(env, {
+      projectId: project.id,
+      swarmName: project.swarmName,
+      hostname: url.hostname,
+    });
+
+    if (result.ok) {
+      await cfSetPreview(env, project.id, result.previewUrl, result.sandboxId);
+      const sb = serviceClient(env);
+      if (sb) {
+        await updateProjectPreview(sb, project.id, {
+          previewUrl: result.previewUrl,
+          sandboxId: result.sandboxId,
+          status: "preview",
+        }).catch(() => undefined);
+      }
+    }
+    return json(env, request, result, result.ok ? 200 : 503);
+  }
+
+  const previewMatch = /^\/api\/preview\/([^/]+)$/.exec(pathname);
+  if (previewMatch && request.method === "GET") {
+    const project = await cfGetProject(env, auth.user.id, decodeURIComponent(previewMatch[1]!));
+    if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
+    return json(env, request, {
+      ok: true,
+      projectId: project.id,
+      swarmName: project.swarmName,
+      previewUrl: project.previewUrl,
+      sandboxId: project.sandboxId,
+      status: project.previewUrl ? "ready" : "unavailable",
     });
   }
 
-  const q = encodeURIComponent(projectName);
-  const [runs, logs, graph, files] = await Promise.all([
-    swarmJson<SwarmAgentRun[]>(env, `/api/agent-runs?project=${q}`),
-    swarmJson<SwarmLog[]>(env, `/api/activity?project=${q}`),
-    swarmJson<SwarmRunGraph>(env, `/api/run-graph?project=${q}`),
-    swarmJson<SwarmArtifactFile[]>(env, `/api/artifacts?project=${q}`),
-  ]);
+  if (pathname === "/api/publish" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 16 * 1024);
+    const key = stringField(body, ["projectId", "project"], { required: true, maxLength: 100 });
+    const requestedSlug = slugField(body);
+    const project = await cfGetProject(env, auth.user.id, key);
+    if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
 
-  const state: SwarmState = {
-    ...stateRaw,
-    projectName: stateRaw.projectName || projectName,
-  };
+    const result = await publishProject(env, {
+      userId: auth.user.id,
+      projectId: project.id,
+      swarmName: project.swarmName,
+      title: project.title,
+      slug: requestedSlug || project.swarmName,
+    });
 
-  return buildSpineSnapshot({
-    state,
-    runs: runs || [],
-    logs: logs || [],
-    graph: graph || null,
-    files: files || [],
-    projects,
-    swarmOnline: true,
-  });
+    if (result.ok) {
+      await cfSetPreview(env, project.id, result.url, project.sandboxId);
+    }
+    return json(env, request, result, result.ok ? 200 : (result.httpStatus || 503));
+  }
+
+  if (pathname === "/api/publish/preview" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 16 * 1024);
+    const projectKey = stringField(body, "project", { maxLength: 100 });
+    const requestedSlug = slugField(body);
+    if (projectKey) {
+      const project = await cfGetProject(env, auth.user.id, projectKey);
+      if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
+      const result = await publishProject(env, {
+        userId: auth.user.id,
+        projectId: project.id,
+        swarmName: project.swarmName,
+        title: project.title,
+        slug: requestedSlug || project.swarmName,
+      });
+      return json(env, request, result);
+    }
+    const slug = requestedSlug || "preview";
+    return json(env, request, {
+      status: "preview",
+      subdomain: slug,
+      url: `https://${slug}.${env.PLATFORM_HOST}`,
+      note: "Pass project id to publish workspace to R2 edge / WfP.",
+    });
+  }
+
+  return json(env, request, { error: "Not found", path: pathname }, 404);
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: cors });
+      return new Response(null, { status: 204, headers: corsHeaders(env, request) });
     }
 
     const url = new URL(request.url);
     const { pathname } = url;
 
+    // Sandbox preview hosts ({port}-{sandboxId}.PLATFORM_HOST) must be resolved
+    // before the published-app wildcard below would swallow them. These are
+    // capability URLs: the sandbox id embeds the project UUID, which only the
+    // owner ever sees, and browsers (iframes) cannot attach Authorization
+    // headers to subdomain navigations.
+    const sandboxProxied = await maybeProxySandbox(request, env);
+    if (sandboxProxied) return sandboxProxied;
+
+    // Public published apps: {slug}.PLATFORM_HOST or /p/{slug}/...
+    const hostSlug = slugFromHost(url.hostname, env.PLATFORM_HOST);
+    if (hostSlug) {
+      // Prefer WfP dispatcher when available
+      if (env.DISPATCHER) {
+        try {
+          const userWorker = env.DISPATCHER.get(hostSlug);
+          return await userWorker.fetch(request);
+        } catch {
+          /* fall through to R2 */
+        }
+      }
+      const published = await servePublished(env, hostSlug, pathname);
+      if (published) return published;
+      return new Response("App not found", { status: 404 });
+    }
+
+    const pubMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
+    if (pubMatch) {
+      const slug = decodeURIComponent(pubMatch[1]!);
+      const rest = pubMatch[2] || "/";
+      const published = await servePublished(env, slug, rest, { pathServing: true });
+      if (published) return published;
+      return new Response("App not found", { status: 404 });
+    }
+
     if (pathname === "/api/health") {
-      const swarm = await proxySwarm(env, "/api/config");
-      return json({
-        ok: true,
-        swarm: swarm?.ok ?? false,
-        platformHost: env.PLATFORM_HOST,
-      });
+      const missing = missingCoreBindings(env);
+      const authReady = Boolean(env.SUPABASE_URL && env.SUPABASE_JWT_SECRET)
+        || (isDevelopment(env) && env.DEV_AUTH_BYPASS === "true");
+      const ready = authReady && (isDevelopment(env) || missing.length === 0);
+      // Binding-by-binding detail is a config disclosure; keep it dev-only.
+      const detail = isDevelopment(env)
+        ? {
+            mediator: Boolean(env.Mediator),
+            domainAgent: Boolean(env.DomainAgent),
+            workflow: Boolean(env.CREW_WORKFLOW),
+            d1: Boolean(env.DB),
+            r2: Boolean(env.WORKSPACES),
+            sandbox: Boolean(env.Sandbox),
+            swarmRuntime: Boolean(env.SwarmRuntime),
+            dispatcher: Boolean(env.DISPATCHER),
+            legacySwarm: useLegacySwarm(env),
+            platformHost: env.PLATFORM_HOST,
+            llm: "deepseek",
+            missingBindings: missing,
+          }
+        : { missingBindings: missing.length };
+      return json(env, request, {
+        ok: ready,
+        controlPlane: "cloudflare",
+        auth: authReady,
+        ...detail,
+      }, ready ? 200 : 503);
     }
 
-    if (pathname === "/api/projects" && request.method === "GET") {
-      const rows = await swarmJson<unknown>(env, "/api/projects");
-      if (rows) return json(rows);
-      return json([], 503);
+    const auth = await requireAuth(request, env);
+    if (isAuthResponse(auth)) {
+      return withCors(env, request, auth);
     }
 
-    if (pathname === "/api/spine" && request.method === "GET") {
-      const requested = url.searchParams.get("project");
-      const projectName = await resolveProjectName(env, requested);
-      const spine = await loadSpine(env, projectName);
-      return json(spine);
+    try {
+      return await handleAuthed(request, env, auth, pathname, url);
+    } catch (err) {
+      if (err instanceof RequestError) {
+        return json(env, request, { error: err.message, code: err.code }, err.status);
+      }
+      const requestId = request.headers.get("CF-Ray") || crypto.randomUUID();
+      console.error(JSON.stringify({ event: "request.failed", requestId, pathname, error: err instanceof Error ? err.message : String(err) }));
+      return json(env, request, { error: "Internal server error", requestId }, 500);
+    }
+  },
+
+  async queue(
+    batch: MessageBatch<{
+      type: string;
+      projectId: string;
+      runId: string;
+      idea: string;
+      title?: string;
+      swarmName?: string;
+      userId?: string;
+    }>,
+    env: Env,
+  ) {
+    // Dead-letter queue: surface permanently failed run messages to the user
+    // instead of dropping them silently.
+    if (batch.queue.endsWith("-dlq")) {
+      for (const msg of batch.messages) {
+        console.error(JSON.stringify({ event: "queue.dead_letter", body: msg.body }));
+        try {
+          if (env.DB && msg.body.userId) {
+            const { d1CreateNotification } = await import("./d1");
+            await d1CreateNotification(env, {
+              id: `dlq-${msg.body.runId || msg.body.projectId}`,
+              userId: msg.body.userId,
+              projectId: msg.body.projectId || null,
+              runId: msg.body.runId || null,
+              kind: "run.failed",
+              severity: "error",
+              title: "Build step failed",
+              message: "A background build task failed after multiple retries. The crew run may be incomplete.",
+              metadata: { type: msg.body.type },
+            });
+          }
+        } catch (err) {
+          console.error("dlq notification failed", err);
+        }
+        msg.ack();
+      }
+      return;
     }
 
-    if (pathname === "/api/spine/activity" && request.method === "GET") {
-      const project = url.searchParams.get("project") || (await resolveProjectName(env, null));
-      if (!project) return json({ activity: [], source: "swarm" });
-      const logs = await swarmJson<SwarmLog[]>(
-        env,
-        `/api/activity?project=${encodeURIComponent(project)}`,
-      );
-      const spine = await loadSpine(env, project);
-      return json({ activity: spine.activity, source: "swarm", raw: logs || [] });
-    }
-
-    if (pathname === "/api/intake" && request.method === "POST") {
-      let payload: Record<string, unknown> = {};
+    for (const msg of batch.messages) {
       try {
-        payload = (await request.json()) as Record<string, unknown>;
-      } catch {
-        return json({ ok: false, error: "Invalid JSON body" }, 400);
-      }
-      const swarmRes = await proxySwarm(env, "/api/intake", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      if (swarmRes) {
-        const body = await swarmRes.text();
-        return new Response(body, {
-          status: swarmRes.status,
-          headers: { "Content-Type": "application/json", ...cors },
-        });
-      }
-      return json(
-        {
-          ok: false,
-          error: "Swarm offline — cannot classify intake without the control plane.",
-        },
-        503,
-      );
-    }
+        if (msg.body.type === "run.start" || msg.body.type === "run.build") {
+          // Prefer workflow-driven crew; queue build is a warm/fallback eng pass
+          if (env.CREW_WORKFLOW && msg.body.type === "run.start") {
+            console.log("run.start — CrewRun Workflow owns phases", msg.body.projectId);
+          } else {
+            const { runEngineeringBuild } = await import("./orchestrator/agent-runner");
+            const { getMediator } = await import("./agents/mediator");
+            const mediator = env.Mediator ? await getMediator(env, msg.body.projectId) : null;
+            const snap = mediator ? await mediator.getSnapshot() : null;
+            const title = snap?.title || msg.body.title || msg.body.swarmName || "project";
+            const brief = snap?.brief || msg.body.idea || "";
+            const swarmName = snap?.swarmName || msg.body.swarmName || "app";
 
-    if (pathname === "/api/run" && request.method === "POST") {
-      const payload = await request.json();
-      const swarmRes = await proxySwarm(env, "/api/run", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      if (swarmRes) {
-        const body = await swarmRes.text();
-        return new Response(body, {
-          status: swarmRes.status,
-          headers: { "Content-Type": "application/json", ...cors },
-        });
+            const result = await runEngineeringBuild(env, {
+              projectId: msg.body.projectId,
+              title,
+              brief,
+              swarmName,
+            });
+            console.log("run.build", msg.body.projectId, result.mode, result.filesWritten.length, result.summary);
+          }
+        } else {
+          console.log("run.queue", msg.body.type, msg.body.projectId);
+        }
+        msg.ack();
+      } catch (err) {
+        console.error("queue failed", err);
+        msg.retry();
       }
-      return json({ ok: false, error: "Swarm control plane offline. Run: npm run dev:swarm" }, 503);
     }
+  },
 
-    if (pathname === "/api/publish/preview" && request.method === "POST") {
-      const body = (await request.json()) as { slug?: string };
-      const slug = (body.slug || "preview").toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      return json({
-        status: "preview",
-        subdomain: slug,
-        url: `https://${slug}.${env.PLATFORM_HOST}`,
-        note: "Workers for Platforms dispatch not wired yet — reserved subdomain contract.",
-      });
-    }
-
-    if (pathname.startsWith("/api/")) {
-      const swarmRes = await proxySwarm(env, pathname + url.search, {
-        method: request.method,
-        body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
-      });
-      if (swarmRes) {
-        const headers = new Headers(swarmRes.headers);
-        Object.entries(cors).forEach(([k, v]) => headers.set(k, v));
-        return new Response(swarmRes.body, { status: swarmRes.status, headers });
-      }
-      return json({ error: "Swarm offline", path: pathname }, 503);
-    }
-
-    return json({ error: "Not found", path: pathname }, 404);
+  // Nightly retention: cf_activity and cf_notifications grow per run and have
+  // no other pruning path.
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    if (!env.DB) return;
+    ctx.waitUntil(
+      (async () => {
+        const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+        const activity = await env.DB!.prepare(`DELETE FROM cf_activity WHERE at < ?`)
+          .bind(daysAgo(30))
+          .run();
+        const readNotifications = await env.DB!.prepare(
+          `DELETE FROM cf_notifications WHERE read_at IS NOT NULL AND created_at < ?`,
+        )
+          .bind(daysAgo(90))
+          .run();
+        const staleNotifications = await env.DB!.prepare(
+          `DELETE FROM cf_notifications WHERE created_at < ?`,
+        )
+          .bind(daysAgo(180))
+          .run();
+        console.log(JSON.stringify({
+          event: "retention.pruned",
+          activity: activity.meta.changes,
+          readNotifications: readNotifications.meta.changes,
+          staleNotifications: staleNotifications.meta.changes,
+        }));
+      })().catch((err) => console.error("retention failed", err)),
+    );
   },
 };

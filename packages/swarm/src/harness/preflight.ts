@@ -74,7 +74,6 @@ function deployKeysForProvider(provider: string, profile = "default"): Preflight
     digitalocean: ["DIGITALOCEAN_TOKEN"],
     gcp: ["GCP_SA_KEY"],
     aws: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
-    "do-droplet": ["DIGITALOCEAN_TOKEN", "HEADSCALE_URL"],
   };
   return (bases[provider] || []).map((base) => ({
     envKey: deployEnvName(base, profile),
