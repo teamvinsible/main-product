@@ -31,6 +31,48 @@ async function resolveToken(): Promise<string | null> {
 /** Worker origin for deployed Pages; empty in dev where Vite proxies /api. */
 const API_BASE = (import.meta.env.VITE_API_ORIGIN || "").replace(/\/$/, "");
 
+type SpineCacheEntry = {
+  data: SpineSnapshot;
+  etag?: string;
+  at: number;
+  inflight?: Promise<SpineSnapshot>;
+};
+
+const spineCache = new Map<string, SpineCacheEntry>();
+const SPINE_TTL_ACTIVE_MS = 4_000;
+const SPINE_TTL_IDLE_MS = 25_000;
+
+function spineCacheKey(project?: string) {
+  return project || "_default";
+}
+
+function isActiveSpine(data: SpineSnapshot): boolean {
+  const status = (data.project?.status || "").toLowerCase();
+  const stage = (data.project?.stage || "").toLowerCase();
+  if (!data.project) return false;
+  if (status === "completed" || status === "ready" || status === "failed" || status === "published") {
+    return false;
+  }
+  if (status === "running" || status === "queued" || status === "drafting") return true;
+  if (stage === "ready" || stage === "idle") return false;
+  return (data.agents || []).some((a) => a.signal === "active" || a.signal === "revision");
+}
+
+function spineTtlMs(data: SpineSnapshot | undefined): number {
+  if (!data) return SPINE_TTL_ACTIVE_MS;
+  return isActiveSpine(data) ? SPINE_TTL_ACTIVE_MS : SPINE_TTL_IDLE_MS;
+}
+
+/** Drop cached spine snapshots after mutations (run / preview / publish / skip). */
+export function invalidateSpineCache(project?: string) {
+  if (project) {
+    spineCache.delete(spineCacheKey(project));
+    spineCache.delete("_default");
+    return;
+  }
+  spineCache.clear();
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await resolveToken();
   const headers: Record<string, string> = {
@@ -55,6 +97,34 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
   return res.json() as Promise<T>;
+}
+
+async function reqSpine(path: string, etag?: string): Promise<{ data: SpineSnapshot; etag?: string; notModified: boolean }> {
+  const token = await resolveToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (etag) headers["If-None-Match"] = etag;
+
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  if (res.status === 304) {
+    return { data: undefined as unknown as SpineSnapshot, etag, notModified: true };
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text || res.statusText;
+    try {
+      const parsed = JSON.parse(text) as { error?: string };
+      if (parsed.error) message = parsed.error;
+    } catch {
+      /* keep text */
+    }
+    throw new Error(message);
+  }
+  const data = (await res.json()) as SpineSnapshot;
+  return { data, etag: res.headers.get("ETag") || undefined, notModified: false };
 }
 
 function asStage(phase?: string): SpineStage {
@@ -96,12 +166,53 @@ function mockSpineFor(project?: string): SpineSnapshot {
   };
 }
 
-export function fetchSpine(project?: string) {
+export function fetchSpine(project?: string, opts?: { force?: boolean }) {
   if (isMockMode()) {
     return Promise.resolve(mockSpineFor(project));
   }
+
+  const key = spineCacheKey(project);
+  const cached = spineCache.get(key);
+  const now = Date.now();
+  if (!opts?.force && cached?.data && now - cached.at < spineTtlMs(cached.data)) {
+    return Promise.resolve(cached.data);
+  }
+  if (cached?.inflight) return cached.inflight;
+
   const q = project ? `?project=${encodeURIComponent(project)}` : "";
-  return req<SpineSnapshot>(`/api/spine${q}`);
+  const inflight = reqSpine(`/api/spine${q}`, cached?.etag)
+    .then(async (result) => {
+      if (result.notModified) {
+        if (cached?.data) {
+          spineCache.set(key, { data: cached.data, etag: result.etag || cached.etag, at: Date.now() });
+          return cached.data;
+        }
+        // Stale etag without body — fetch once without precondition.
+        const fresh = await reqSpine(`/api/spine${q}`);
+        spineCache.set(key, { data: fresh.data, etag: fresh.etag, at: Date.now() });
+        return fresh.data;
+      }
+      spineCache.set(key, {
+        data: result.data,
+        etag: result.etag || cached?.etag,
+        at: Date.now(),
+      });
+      return result.data;
+    })
+    .catch((err) => {
+      const entry = spineCache.get(key);
+      if (entry?.inflight) {
+        spineCache.set(key, { data: entry.data, etag: entry.etag, at: entry.at });
+      }
+      throw err;
+    });
+
+  if (cached?.data) {
+    spineCache.set(key, { ...cached, inflight });
+  } else {
+    spineCache.set(key, { data: undefined as unknown as SpineSnapshot, at: 0, inflight });
+  }
+  return inflight;
 }
 
 export function submitIntake(body: {
@@ -127,6 +238,9 @@ export function submitIntake(body: {
   return req<IntakePlan & Record<string, unknown>>("/api/intake", {
     method: "POST",
     body: JSON.stringify(body),
+  }).then((data) => {
+    invalidateSpineCache();
+    return data;
   });
 }
 
@@ -142,6 +256,9 @@ export function startRun(body: Record<string, unknown>) {
   return req<RunStartResponse>("/api/run", {
     method: "POST",
     body: JSON.stringify(body),
+  }).then((data) => {
+    invalidateSpineCache(typeof body.projectId === "string" ? body.projectId : undefined);
+    return data;
   });
 }
 
@@ -173,6 +290,9 @@ export function startPreview(project: string) {
   return req<PreviewStatus>("/api/preview", {
     method: "POST",
     body: JSON.stringify({ project }),
+  }).then((data) => {
+    invalidateSpineCache(project);
+    return data;
   });
 }
 
@@ -197,6 +317,9 @@ export function publishProject(project: string, slug?: string) {
   }>("/api/publish", {
     method: "POST",
     body: JSON.stringify({ project, slug }),
+  }).then((data) => {
+    invalidateSpineCache(project);
+    return data;
   });
 }
 
@@ -246,5 +369,8 @@ export function skipAgent(project: string, agentId: string) {
   return req<{ ok?: boolean; skipped?: string[]; error?: string }>("/api/skip", {
     method: "POST",
     body: JSON.stringify({ project, agentId }),
+  }).then((data) => {
+    invalidateSpineCache(project);
+    return data;
   });
 }

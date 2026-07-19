@@ -63,10 +63,11 @@
     "bindings": [
       { "name": "Mediator", "class_name": "MediatorAgent" },
       { "name": "DomainAgent", "class_name": "DomainAgent" }
-      // Sandbox + SwarmRuntime bindings require Containers (Workers Paid plan).
-      // After upgrading, restore:
-      //   { "name": "Sandbox", "class_name": "Sandbox" },
-      //   { "name": "SwarmRuntime", "class_name": "SwarmRuntime" }
+      // Sandbox + SwarmRuntime need Workers Paid + Containers.
+      // Upgrade: https://dash.cloudflare.com/?to=/:account/workers/plans
+      // Then uncomment the two bindings below + the containers block, and `npx wrangler deploy`.
+      // { "name": "Sandbox", "class_name": "Sandbox" },
+      // { "name": "SwarmRuntime", "class_name": "SwarmRuntime" }
     ]
   },
   // "containers": [

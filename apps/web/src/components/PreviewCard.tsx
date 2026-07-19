@@ -2,14 +2,19 @@ import { Button } from "antd";
 import { IconExternal } from "./icons";
 
 interface Props {
-  previewUrl?: string | null;
+  /** Live shareable URL (published app). Preferred over sandbox preview. */
+  liveUrl?: string | null;
+  /** Optional ephemeral sandbox URL when Containers are enabled. */
+  sandboxUrl?: string | null;
+  sandboxAvailable?: boolean;
   previewError?: string | null;
   previewBusy?: boolean;
-  onStartPreview?: () => void;
-  publishUrl?: string | null;
+  onStartSandbox?: () => void;
   publishBusy?: boolean;
   publishError?: string | null;
   onPublish?: () => void;
+  /** True once the crew finished and a publishable workspace exists. */
+  canPublish?: boolean;
 }
 
 function displayHost(url: string) {
@@ -22,28 +27,30 @@ function displayHost(url: string) {
 }
 
 export function PreviewCard({
-  previewUrl,
+  liveUrl,
+  sandboxUrl,
+  sandboxAvailable,
   previewError,
   previewBusy,
-  onStartPreview,
-  publishUrl,
+  onStartSandbox,
   publishBusy,
   publishError,
   onPublish,
+  canPublish = false,
 }: Props) {
-  const canPublish = Boolean(previewUrl || publishUrl);
+  const primaryUrl = liveUrl || sandboxUrl || null;
 
   return (
-    <section className="card preview-card" aria-label="Sandbox preview">
+    <section className="card preview-card" aria-label="Live app">
       <header className="preview-card-head">
         <div>
-          <p className="orch-kicker">Sandbox</p>
-          <h3 className="preview-card-title">Preview</h3>
+          <p className="orch-kicker">Deploy</p>
+          <h3 className="preview-card-title">Live app</h3>
         </div>
-        {previewUrl ? (
+        {primaryUrl ? (
           <a
             className="preview-card-open"
-            href={previewUrl}
+            href={primaryUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -56,58 +63,53 @@ export function PreviewCard({
       {previewError ? <p className="preview-card-error">{previewError}</p> : null}
       {publishError ? <p className="preview-card-error">{publishError}</p> : null}
 
-      {previewUrl ? (
+      {primaryUrl ? (
         <a
           className="preview-card-url"
-          href={previewUrl}
+          href={primaryUrl}
           target="_blank"
           rel="noopener noreferrer"
-          title={previewUrl}
+          title={primaryUrl}
         >
-          {displayHost(previewUrl)}
+          {liveUrl ? `Live · ${displayHost(primaryUrl)}` : displayHost(primaryUrl)}
         </a>
       ) : (
         <div className="preview-card-empty">
-          <p className="muted">No live preview yet.</p>
-          {onStartPreview ? (
-            <Button type="default" size="small" loading={previewBusy} onClick={onStartPreview}>
-              Start preview
-            </Button>
-          ) : null}
-          <p id="preview-publish-requirement" className="preview-card-hint">
-            Review a preview before publishing.
+          <p className="muted">
+            {canPublish
+              ? "Ready to publish a shareable URL."
+              : "The live URL appears here when the crew finishes shipping."}
           </p>
         </div>
       )}
 
-      {publishUrl ? (
+      {liveUrl && sandboxUrl && sandboxUrl !== liveUrl ? (
         <a
           className="preview-card-url preview-card-publish-url"
-          href={publishUrl}
+          href={sandboxUrl}
           target="_blank"
           rel="noopener noreferrer"
-          title={publishUrl}
+          title={sandboxUrl}
         >
-          Live · {displayHost(publishUrl)}
+          Sandbox · {displayHost(sandboxUrl)}
         </a>
       ) : null}
 
       <div className="preview-card-actions">
-        {previewUrl && onStartPreview ? (
-          <Button type="default" size="small" loading={previewBusy} onClick={onStartPreview}>
-            Refresh preview
-          </Button>
-        ) : null}
         {onPublish ? (
           <Button
             type="primary"
             size="small"
             loading={publishBusy}
-            disabled={!canPublish}
-            aria-describedby={!canPublish ? "preview-publish-requirement" : undefined}
+            disabled={!canPublish && !liveUrl}
             onClick={onPublish}
           >
-            {publishUrl ? "Republish" : "Publish"}
+            {liveUrl ? "Republish" : "Publish"}
+          </Button>
+        ) : null}
+        {sandboxAvailable && onStartSandbox ? (
+          <Button type="default" size="small" loading={previewBusy} onClick={onStartSandbox}>
+            {sandboxUrl ? "Refresh sandbox" : "Sandbox preview"}
           </Button>
         ) : null}
       </div>

@@ -333,7 +333,13 @@ export async function cfLoadSpine(
     const mediator = await getMediator(env, project.id);
     const snap = await mediator.getSnapshot();
     if (snap.projectId) {
-      return mediatorToSpine(snap, projects);
+      const spine = mediatorToSpine(snap, projects);
+      // Prefer durable publish/preview URL from D1 when Mediator state is stale.
+      if (!spine.previewUrl && project.previewUrl) {
+        spine.previewUrl = project.previewUrl;
+        spine.sandboxId = project.sandboxId;
+      }
+      return spine;
     }
   }
 
@@ -374,22 +380,25 @@ export async function cfSetPreview(
   projectId: string,
   previewUrl: string | null,
   sandboxId: string | null,
+  status: string = "preview",
 ): Promise<void> {
   if (hasD1(env)) {
-    await d1UpdateProject(env, projectId, { preview_url: previewUrl, sandbox_id: sandboxId, status: "preview" });
+    await d1UpdateProject(env, projectId, {
+      preview_url: previewUrl,
+      sandbox_id: sandboxId,
+      status,
+    });
   } else {
     if (!isDevelopment(env)) throw new Error("D1 binding is unavailable");
     try {
-      memoryStore.updatePreview(projectId, { previewUrl, sandboxId, status: "preview" });
+      memoryStore.updatePreview(projectId, { previewUrl, sandboxId, status });
     } catch {
       /* ignore */
     }
   }
-  if (env.Mediator) {
+  if (env.Mediator && previewUrl) {
     const mediator = await getMediator(env, projectId);
-    if (previewUrl && sandboxId) {
-      await mediator.setPreview(previewUrl, sandboxId);
-    }
+    await mediator.setPreview(previewUrl, sandboxId || "published");
   }
 }
 

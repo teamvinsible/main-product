@@ -97,10 +97,36 @@ export function corsHeaders(env: Env, request: Request): Record<string, string> 
   };
 }
 
-export function json(env: Env, request: Request, data: unknown, status = 200): Response {
+export function json(
+  env: Env,
+  request: Request,
+  data: unknown,
+  status = 200,
+  extraHeaders?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders(env, request) },
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders(env, request),
+      ...extraHeaders,
+    },
+  });
+}
+
+export function notModified(
+  env: Env,
+  request: Request,
+  etag: string,
+  cacheControl = "private, max-age=5",
+): Response {
+  return new Response(null, {
+    status: 304,
+    headers: {
+      ETag: etag,
+      "Cache-Control": cacheControl,
+      ...corsHeaders(env, request),
+    },
   });
 }
 
