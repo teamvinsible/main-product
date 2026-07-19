@@ -1730,10 +1730,10 @@ a:hover {
 .hub {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 280px;
   min-width: 0;
   margin: 4px 4px 0;
-  padding: 8px 18px 20px;
+  padding: 28px 18px 36px;
   overflow: hidden;
 }
 
@@ -5913,7 +5913,7 @@ a:hover {
 .legal-aside nav a { padding: 0.9rem 0; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-size: 0.8rem; }
 .legal-aside nav a:hover,
 .legal-aside nav a.is-active { color: var(--ink); }
-.legal-aside nav a.is-active::before { content: "â†’"; margin-right: 0.5rem; color: var(--blue); }
+.legal-aside nav a.is-active::before { content: "â??"; margin-right: 0.5rem; color: var(--blue); }
 
 .legal-document { min-width: 0; }
 .legal-title-block { padding-bottom: 4rem; border-bottom: 1px solid var(--line-2); }
@@ -6896,10 +6896,13 @@ a:hover {
 @media (max-width: 600px) {
   .bento-topline {
     gap: 8px;
+    /* Stack: brief row on top, arrange-cards controls on their own row below */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .layout-actions {
-    min-height: 74px;
+    min-height: 0;
+    justify-content: flex-end;
   }
 
   .layout-edit-button.ant-btn {
@@ -6951,7 +6954,7 @@ a:hover {
   }
 }
 
-/* Brand loader â€” the logo mark drawing itself in a loop */
+/* Brand loader â?? the logo mark drawing itself in a loop */
 .brand-loader {
   display: grid;
   place-items: center;
