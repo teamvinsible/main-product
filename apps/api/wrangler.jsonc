@@ -17,7 +17,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "PLATFORM_HOST": "teamvinsible.com",
-    "ALLOWED_ORIGINS": "https://teamvinsible.com,https://www.teamvinsible.com,https://teamvinsible-web.pages.dev",
+    "ALLOWED_ORIGINS": "https://teamvinsible.com,https://www.teamvinsible.com,https://teamvinsible-web.pages.dev,https://*.teamvinsible-web.pages.dev",
     "LEGACY_SWARM": "false",
     "DISPATCH_NAMESPACE": "teamvinsible-customers"
   },
