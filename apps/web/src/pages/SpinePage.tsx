@@ -20,6 +20,7 @@ import type {
 import { fetchSpine, isMockMode, publishProject, skipAgent, startPreview } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
+import { FlowCanvas } from "../components/FlowCanvas";
 import { HealthCard } from "../components/HealthCard";
 import { OrchestratorHub } from "../components/OrchestratorHub";
 import { PreviewCard } from "../components/PreviewCard";
@@ -269,6 +270,7 @@ export function SpinePage() {
   const [spine, setSpine] = useState<SpineSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalKind | null>(null);
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
   const [sideTab, setSideTab] = useState<SideTab>("specs");
   const [bottomTab, setBottomTab] = useState<BottomTab>("activity");
@@ -681,7 +683,7 @@ export function SpinePage() {
                   <span className="muted">{formatStatusLabel(spine.project.status)}</span>
                 )}
               </div>
-              <TabExpandButton label="Full view" onClick={() => setModal({ type: "orchestrator" })} />
+              <TabExpandButton label="Full view" onClick={() => setCanvasOpen(true)} />
             </div>
           </div>
 
@@ -925,6 +927,16 @@ export function SpinePage() {
       </BentoItem>
     </div>
 
+
+      <FlowCanvas
+        open={canvasOpen}
+        onClose={() => setCanvasOpen(false)}
+        title="Coordination flow"
+        live={spine.live}
+        agents={spine.agents}
+        revisionLoop={spine.revisionLoop}
+        dataFlows={spine.dataFlows}
+      />
 
       <PushSidebar
         open={Boolean(modal)}
