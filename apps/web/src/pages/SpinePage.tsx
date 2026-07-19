@@ -38,6 +38,7 @@ import {
 } from "../components/icons";
 import { formatStatusLabel, specStatusMeta } from "../lib/status";
 import { formatRelativeTime } from "../lib/time";
+import { celebrateShip } from "../lib/celebrate";
 
 const STAGES: { key: SpineStage; label: string; num: number }[] = [
   { key: "drafting", label: "Strategy & design", num: 1 },
@@ -285,6 +286,8 @@ export function SpinePage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishUrl, setPublishUrl] = useState<string | null>(null);
   const [sandboxAvailable, setSandboxAvailable] = useState(false);
+  const [shipHighlight, setShipHighlight] = useState(false);
+  const shippedSeenRef = useRef<boolean | null>(null);
   const [skipBusy, setSkipBusy] = useState(false);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
@@ -474,10 +477,51 @@ export function SpinePage() {
   }, [spine?.previewUrl]);
 
   useEffect(() => {
+    const live = publishUrl || spine?.previewUrl || null;
+    const status = (spine?.project?.status || "").toLowerCase();
+    const stage = (spine?.project?.stage || "").toLowerCase();
+    const shipped =
+      Boolean(live) &&
+      (stage === "ready" ||
+        status === "completed" ||
+        status === "ready" ||
+        status === "published" ||
+        status === "preview");
+
+    // First spine snapshot for this project — remember, don't celebrate history.
+    if (shippedSeenRef.current === null) {
+      if (spine?.project) shippedSeenRef.current = shipped;
+      return;
+    }
+
+    if (shipped && !shippedSeenRef.current) {
+      shippedSeenRef.current = true;
+      setShipHighlight(true);
+      celebrateShip();
+      const clear = window.setTimeout(() => setShipHighlight(false), 8000);
+      return () => window.clearTimeout(clear);
+    }
+
+    if (!shipped) shippedSeenRef.current = false;
+  }, [spine?.project, spine?.previewUrl, publishUrl]);
+
+  useEffect(() => {
+    shippedSeenRef.current = null;
+    setShipHighlight(false);
+  }, [project]);
+
+  useEffect(() => {
     let alive = true;
     let streamAbort: AbortController | undefined;
     let reconnectTimer: number | undefined;
+    let stallTimer: number | undefined;
+    let pollTimer: number | undefined;
     let latest: SpineSnapshot | null = null;
+    let lastActivityAt = Date.now();
+    /** SSE can go quiet when the Durable Object hibernates mid-run. */
+    const STALL_MS = 45_000;
+    const POLL_MS = 25_000;
+    const RECONNECT_MS = 2_500;
 
     const isActiveRun = (data: SpineSnapshot | null) => {
       const status = (data?.project?.status || "").toLowerCase();
@@ -504,10 +548,26 @@ export function SpinePage() {
         window.clearTimeout(reconnectTimer);
         reconnectTimer = undefined;
       }
+      if (stallTimer) {
+        window.clearInterval(stallTimer);
+        stallTimer = undefined;
+      }
+    };
+
+    const stopPoll = () => {
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+    };
+
+    const markActivity = () => {
+      lastActivityAt = Date.now();
     };
 
     const applySpine = (data: SpineSnapshot) => {
       latest = data;
+      markActivity();
       setSpine((prev) => (prev === data ? prev : data));
       setError(null);
       if (!project && data.project?.id) {
@@ -515,23 +575,53 @@ export function SpinePage() {
       }
     };
 
+    const scheduleReconnect = () => {
+      if (reconnectTimer || !alive || document.hidden) return;
+      if (!isActiveRun(latest)) return;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = undefined;
+        if (alive && latest?.project?.id && isActiveRun(latest) && !document.hidden) {
+          startStream(latest.project.id);
+        }
+      }, RECONNECT_MS);
+    };
+
     const startStream = (projectId: string) => {
       if (!alive || isMockMode() || document.hidden) return;
       stopStream();
       const ac = new AbortController();
       streamAbort = ac;
+      markActivity();
+
+      stallTimer = window.setInterval(() => {
+        if (!alive || ac.signal.aborted || document.hidden) return;
+        if (!isActiveRun(latest)) {
+          stopStream();
+          return;
+        }
+        if (Date.now() - lastActivityAt < STALL_MS) return;
+        // Half-open SSE: abort and reconnect; polling keeps the UI honest meanwhile.
+        ac.abort();
+        scheduleReconnect();
+      }, 10_000);
 
       void subscribeSpine(
         projectId,
         {
+          onActivity: markActivity,
           onSpine: (data) => {
             if (!alive) return;
             applySpine(data);
-            if (!isActiveRun(data)) stopStream();
+            if (!isActiveRun(data)) {
+              stopStream();
+              stopPoll();
+            }
           },
           onEnd: () => {
             if (!alive) return;
             stopStream();
+            if (isActiveRun(latest)) scheduleReconnect();
+            else stopPoll();
           },
           onError: (err) => {
             if (!alive || ac.signal.aborted) return;
@@ -541,24 +631,44 @@ export function SpinePage() {
         { signal: ac.signal },
       )
         .then(() => {
-          // Clean close without settle (proxy drop, DO eviction) — reconnect if still active.
           if (!alive || ac.signal.aborted || document.hidden) return;
           if (!isActiveRun(latest)) return;
-          reconnectTimer = window.setTimeout(() => {
-            if (alive && latest?.project?.id && isActiveRun(latest)) {
-              startStream(latest.project.id);
-            }
-          }, 4000);
+          scheduleReconnect();
         })
         .catch(() => {
           if (!alive || ac.signal.aborted || document.hidden) return;
           if (!isActiveRun(latest)) return;
-          reconnectTimer = window.setTimeout(() => {
-            if (alive && latest?.project?.id && isActiveRun(latest)) {
-              startStream(latest.project.id);
-            }
-          }, 4000);
+          scheduleReconnect();
         });
+    };
+
+    const startPoll = () => {
+      if (isMockMode() || pollTimer) return;
+      pollTimer = window.setInterval(() => {
+        if (!alive || document.hidden) return;
+        if (!isActiveRun(latest)) {
+          stopPoll();
+          return;
+        }
+        void fetchSpine(project, { force: true })
+          .then((data) => {
+            if (!alive) return;
+            applySpine(data);
+            if (!isActiveRun(data)) {
+              stopStream();
+              stopPoll();
+              return;
+            }
+            // If SSE looks stalled, force a reconnect after a successful poll.
+            if (!streamAbort || Date.now() - lastActivityAt >= STALL_MS) {
+              const id = data.project?.id || project;
+              if (id) startStream(id);
+            }
+          })
+          .catch(() => {
+            /* keep polling; next tick retries */
+          });
+      }, POLL_MS);
     };
 
     const load = (opts?: { force?: boolean }) => {
@@ -567,8 +677,13 @@ export function SpinePage() {
           if (!alive) return;
           applySpine(data);
           const projectId = data.project?.id || project;
-          if (projectId && isActiveRun(data)) startStream(projectId);
-          else stopStream();
+          if (projectId && isActiveRun(data)) {
+            startStream(projectId);
+            startPoll();
+          } else {
+            stopStream();
+            stopPoll();
+          }
         })
         .catch((err: Error) => {
           if (alive) setError(err.message);
@@ -592,6 +707,7 @@ export function SpinePage() {
     return () => {
       alive = false;
       stopStream();
+      stopPoll();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [project, navigate]);
@@ -875,7 +991,7 @@ export function SpinePage() {
             <div>
               <p className="orch-kicker">Orchestrator</p>
               <h2 className="orch-title">
-                Mediator coordinating{" "}
+                Nexus coordinating{" "}
                 {spine.agents.filter((a) => a.id !== "mediator").length} domain agents
               </h2>
             </div>
@@ -922,6 +1038,7 @@ export function SpinePage() {
               publishBusy={publishBusy}
               publishError={publishError}
               onPublish={onPublish}
+              highlight={shipHighlight}
               canPublish={
                 Boolean(spine.project) &&
                 (spine.project!.stage === "ready" ||

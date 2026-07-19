@@ -184,9 +184,9 @@ export async function cfStartRun(
       id: crypto.randomUUID(),
       project_id: projectId,
       run_id: runId,
-      message: "Run accepted by Mediator on Cloudflare",
+      message: "Run accepted by Nexus on Cloudflare",
       kind: "gate",
-      agent: "Mediator",
+      agent: "Nexus",
       phase: "intake",
     });
     await d1CreateNotification(env, {
@@ -300,7 +300,7 @@ export async function cfLoadSpine(
         source: "swarm",
         projects,
         swarmOnline: true,
-        message: "No projects yet. Start a brief to assign the Mediator crew.",
+        message: "No projects yet. Start a brief to assign the Nexus crew.",
       };
     }
     projectKey = owned[0].id;
@@ -374,7 +374,7 @@ export async function cfLoadSpine(
     swarmOnline: true,
     previewUrl: project.previewUrl,
     sandboxId: project.sandboxId,
-    message: "Mediator is warming up…",
+    message: "Nexus is warming up…",
   };
 }
 
@@ -393,7 +393,7 @@ export async function cfOpenSpineStream(
     });
   }
   if (!env.Mediator) {
-    return new Response(JSON.stringify({ error: "Mediator is unavailable" }), {
+    return new Response(JSON.stringify({ error: "Nexus is unavailable" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });

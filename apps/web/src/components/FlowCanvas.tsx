@@ -5,7 +5,7 @@ import { OrchestratorHub } from "./OrchestratorHub";
 import { IconClose } from "./icons";
 
 const LABELS: Record<string, string> = {
-  mediator: "Mediator",
+  mediator: "Nexus",
   research: "Research",
   product: "Product",
   brand: "Brand",
@@ -24,8 +24,8 @@ const LABELS: Record<string, string> = {
 
 function kindLabel(kind?: DataFlowEdge["kind"]) {
   if (kind === "revision") return "Revision";
-  if (kind === "to-mediator") return "To mediator";
-  if (kind === "from-mediator") return "From mediator";
+  if (kind === "to-mediator") return "To Nexus";
+  if (kind === "from-mediator") return "From Nexus";
   return "Handoff";
 }
 
@@ -121,7 +121,7 @@ export function FlowCanvas({
               <i className="leg-line" /> Active / done
             </span>
             <span className="leg-swatch is-blue" /> Handoff
-            <span className="leg-swatch is-green" /> To mediator
+            <span className="leg-swatch is-green" /> To Nexus
             <span className="leg-swatch is-purple" /> Revision
           </div>
         </div>

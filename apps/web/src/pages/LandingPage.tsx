@@ -11,7 +11,7 @@ const crew = ["Research", "Product", "Brand", "Design", "Engineering", "Review",
 const features = [
   {
     number: "01",
-    title: "A Mediator that keeps the plot",
+    title: "A Nexus that keeps the plot",
     copy: "One coordinating intelligence turns your brief into a plan, routes work to the right specialists, and keeps every handoff connected.",
     detail: "Plan · route · reconcile",
   },
@@ -50,7 +50,7 @@ const features = [
 const faqs = [
   {
     question: "What is Teamvinsible?",
-    answer: "Teamvinsible is an AI agent coordination platform that turns a brief into planned, reviewed, and publishable work. A Mediator coordinates specialist agents while you retain visibility into their specs, files, decisions, and progress.",
+    answer: "Teamvinsible is an AI agent coordination platform that turns a brief into planned, reviewed, and publishable work. Nexus coordinates specialist agents while you retain visibility into their specs, files, decisions, and progress.",
   },
   {
     question: "How is Teamvinsible different from an AI app builder?",
@@ -58,7 +58,7 @@ const faqs = [
   },
   {
     question: "Which AI agents are included?",
-    answer: "A project can involve Research, Product, Brand, Design, Engineering, Review, Social, and Email specialists, with a Mediator coordinating the right roles for the brief.",
+    answer: "A project can involve Research, Product, Brand, Design, Engineering, Review, Social, and Email specialists, with Nexus coordinating the right roles for the brief.",
   },
   {
     question: "Can I see what the agents are doing?",
@@ -172,7 +172,7 @@ export function LandingPage() {
               <span>A whole crew in motion.</span>
             </h1>
             <p className="landing-sub">
-              Teamvinsible turns your idea into coordinated execution. A Mediator leads specialist AI agents across research, product, brand, engineering, and launch—while you see every decision, artifact, and revision.
+              Teamvinsible turns your idea into coordinated execution. Nexus leads specialist AI agents across research, product, brand, engineering, and launch—while you see every decision, artifact, and revision.
             </p>
             <div className="landing-cta">
               <Link to={primaryHref}>
@@ -198,7 +198,7 @@ export function LandingPage() {
               <li><CheckOutlined /> Preview to publish</li>
             </ul>
           </div>
-          <div className="landing-hero-visual" data-reveal aria-label="Illustration of a Mediator coordinating specialist AI agents">
+          <div className="landing-hero-visual" data-reveal aria-label="Illustration of Nexus coordinating specialist AI agents">
             <div className="agent-window">
               <div className="agent-window-top">
                 <span className="window-dots"><i /><i /><i /></span>
@@ -221,7 +221,7 @@ export function LandingPage() {
                   <div className="agent-mediator">
                     <span className="agent-mediator-pulse" />
                     <BrandLogo compact />
-                    <strong>Mediator</strong>
+                    <strong>Nexus</strong>
                     <small>Coordinating 8 agents</small>
                   </div>
                 </div>
@@ -269,12 +269,12 @@ export function LandingPage() {
           <div className="story-timeline">
             <article className="story-step" data-reveal>
               <div className="story-step-number">01</div>
-              <div className="story-step-copy"><p>Brief</p><h3>Say what you want to make.</h3><span>Describe the goal, attach context, choose the crew, and let the Mediator shape a shared plan.</span></div>
+              <div className="story-step-copy"><p>Brief</p><h3>Say what you want to make.</h3><span>Describe the goal, attach context, choose the crew, and let Nexus shape a shared plan.</span></div>
               <div className="story-step-visual brief-visual"><span className="typing-line typing-line-a" /><span className="typing-line typing-line-b" /><span className="typing-line typing-line-c" /><i>→</i></div>
             </article>
             <article className="story-step is-reverse" data-reveal>
               <div className="story-step-number">02</div>
-              <div className="story-step-copy"><p>Coordinate</p><h3>The right specialists get to work.</h3><span>The Mediator delegates, sequences, and reconnects each contribution so every agent works from the same intent.</span></div>
+              <div className="story-step-copy"><p>Coordinate</p><h3>The right specialists get to work.</h3><span>Nexus delegates, sequences, and reconnects each contribution so every agent works from the same intent.</span></div>
               <div className="story-step-visual coordinate-visual"><span className="coordinate-core">M</span>{["R", "P", "B", "E"].map((item) => <i key={item}>{item}</i>)}</div>
             </article>
             <article className="story-step" data-reveal>
@@ -320,7 +320,7 @@ export function LandingPage() {
               <div className="difference-row difference-head" role="row"><span role="columnheader">One-shot AI</span><span role="columnheader">Teamvinsible</span></div>
               <div className="difference-row" role="row"><span role="cell">One generic assistant</span><strong role="cell">A coordinated specialist crew</strong></div>
               <div className="difference-row" role="row"><span role="cell">Final output only</span><strong role="cell">Visible specs, files, and decisions</strong></div>
-              <div className="difference-row" role="row"><span role="cell">You manage every handoff</span><strong role="cell">The Mediator carries context forward</strong></div>
+              <div className="difference-row" role="row"><span role="cell">You manage every handoff</span><strong role="cell">Nexus carries context forward</strong></div>
               <div className="difference-row" role="row"><span role="cell">Feedback starts another chat</span><strong role="cell">Revision loops stay inside the work</strong></div>
               <div className="difference-row" role="row"><span role="cell">Stops at generation</span><strong role="cell">Continues through preview and publish</strong></div>
             </div>
@@ -368,7 +368,21 @@ export function LandingPage() {
         <Link to="/" aria-label="Teamvinsible home"><BrandLogo /></Link>
         <p>AI agent coordination for ambitious teams.</p>
         <nav aria-label="Footer navigation"><a href="#how-it-works">How it works</a><a href="#features">Capabilities</a><a href="#faq">FAQ</a><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/login">Sign in</Link></nav>
-        <small>© {new Date().getFullYear()} Teamvinsible</small>
+        <small>
+          © {new Date().getFullYear()} Teamvinsible
+          <span className="footer-credit">
+            Made with ❤️ &amp; AI by Froundrylabs in{" "}
+            <img
+              className="footer-flag"
+              src="/flag-india.svg"
+              alt="India"
+              width={18}
+              height={12}
+              loading="lazy"
+              decoding="async"
+            />
+          </span>
+        </small>
       </footer>
     </div>
   );

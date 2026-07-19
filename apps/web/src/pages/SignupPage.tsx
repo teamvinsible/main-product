@@ -46,7 +46,7 @@ export function SignupPage() {
           <BrandLogo />
         </Link>
         <h1>Create your workspace</h1>
-        <p className="auth-lead">Google or email — then hand work to the Mediator.</p>
+        <p className="auth-lead">Google or email — then hand work to Nexus.</p>
 
         {!configured && (
           <Alert
