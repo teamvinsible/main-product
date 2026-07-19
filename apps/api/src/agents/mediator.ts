@@ -15,12 +15,21 @@ import {
   workspaceFileTitle,
 } from "@teamvinsible/shared";
 import type { Env } from "../env";
+import {
+  activityBootstrapAccepted,
+  activityBootstrapWorkflow,
+  activityFirstName,
+  activityPhaseDone,
+  activityPhaseStart,
+} from "../orchestrator/activity-copy";
 import { baseCrewAgents, CREW_PHASES } from "../orchestrator/phases";
 
 export type MediatorState = {
   projectId: string;
   swarmName: string;
   userId: string;
+  /** Prefer first name when addressing the user in activity. */
+  displayName: string;
   title: string;
   brief: string;
   stage: SpineStage;
@@ -58,6 +67,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     projectId: "",
     swarmName: "",
     userId: "",
+    displayName: "",
     title: "",
     brief: "",
     stage: "drafting",
@@ -74,6 +84,29 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     startedAt: "",
     updatedAt: "",
   };
+
+  #userName(): string {
+    return activityFirstName(this.state.displayName);
+  }
+
+  #pushActivity(item: Omit<ActivityItem, "id" | "at"> & { at?: string }): void {
+    const at = item.at || new Date().toISOString();
+    this.setState({
+      ...this.state,
+      activity: [
+        {
+          id: crypto.randomUUID(),
+          at,
+          message: item.message,
+          kind: item.kind,
+          agent: item.agent,
+          phase: item.phase,
+        },
+        ...this.state.activity,
+      ].slice(0, 40),
+      updatedAt: at,
+    });
+  }
 
   /** Live dashboard SSE writers (one Durable Object instance per project). */
   #sseClients = new Set<SpineSseClient>();
@@ -182,11 +215,14 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     projectId: string;
     swarmName: string;
     userId: string;
+    displayName?: string;
     title: string;
     brief: string;
     runId: string;
   }): Promise<MediatorState> {
     const now = new Date().toISOString();
+    const displayName = (input.displayName || "").trim();
+    const name = activityFirstName(displayName);
     const workstreams: Workstream[] = PHASES.map((p, i) => ({
       id: `ws-${p.phase}`,
       label: p.label,
@@ -198,6 +234,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     this.setState({
       ...this.state,
       ...input,
+      displayName,
       stage: "drafting",
       status: "running",
       phaseIndex: 0,
@@ -211,7 +248,7 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
         {
           id: crypto.randomUUID(),
           at: now,
-          message: `Nexus accepted brief for ${input.title}`,
+          message: activityBootstrapAccepted(name, input.title),
           kind: "gate",
           agent: "Nexus",
           phase: "intake",
@@ -224,24 +261,48 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     // The CrewRun Workflow is created exactly once by cfStartRun (instance id = runId).
     // Creating it here as well would throw "instance already exists" back to the caller.
     if (this.env.CREW_WORKFLOW) {
-      this.setState({
-        ...this.state,
-        activity: [
-          {
-            id: crypto.randomUUID(),
-            at: now,
-            message: "CrewRun Workflow owns phases — domain agents will execute each step",
-            kind: "gate",
-            agent: "Nexus",
-            phase: "workflow",
-          },
-          ...this.state.activity,
-        ],
+      this.#pushActivity({
+        at: now,
+        message: activityBootstrapWorkflow(name),
+        kind: "gate",
+        agent: "Nexus",
+        phase: "workflow",
       });
+      // Tease the first specialist so the feed feels live before the workflow step lands.
+      const first = PHASES[0];
+      if (first) {
+        this.#pushActivity({
+          message: activityPhaseStart(first.phase, name, input.title),
+          kind: "info",
+          agent: "Nexus",
+          phase: first.phase,
+        });
+      }
       return this.state;
     }
 
     await this.schedule(2, "advancePhase", {});
+    return this.state;
+  }
+
+  /** Called by CrewRunWorkflow just before a DomainAgent starts a phase. */
+  @callable()
+  async announcePhaseStart(input: {
+    phase: string;
+    label: string;
+    agentId: string;
+  }): Promise<MediatorState> {
+    // Skip duplicate announce when bootstrap already queued the first phase line.
+    const latest = this.state.activity[0];
+    if (latest?.phase === input.phase && latest.kind === "info") {
+      return this.state;
+    }
+    this.#pushActivity({
+      message: activityPhaseStart(input.phase, this.#userName(), this.state.title),
+      kind: "info",
+      agent: "Nexus",
+      phase: input.phase,
+    });
     return this.state;
   }
 
@@ -331,8 +392,10 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       {
         id: crypto.randomUUID(),
         at: now,
-        message: `${input.label} completed (domain agent)`,
+        message: activityPhaseDone(input.phase, this.#userName(), this.state.title),
         kind: "signal" as const,
+        agent: "Nexus",
+        phase: input.phase,
       },
       ...this.state.activity,
     ].slice(0, 40);
@@ -409,6 +472,11 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
     if (idx < 0 || idx >= PHASES.length) return this.state;
 
     const current = PHASES[idx]!;
+    await this.announcePhaseStart({
+      phase: current.phase,
+      label: current.label,
+      agentId: current.agentId,
+    });
     let artifactSummary = `${current.label} for “${this.state.title}”.`;
     let artifactPath = `artifacts/${current.phase}.md`;
     let filesWritten: string[] = [];

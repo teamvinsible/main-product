@@ -31,6 +31,20 @@ export class CrewRunWorkflow extends WorkflowEntrypoint<Env, CrewRunParams> {
       const phase = PHASES[i]!;
       const done = i === PHASES.length - 1;
 
+      await step.do(
+        `phase:${phase.phase}:announce`,
+        { retries: { limit: 2, delay: "2 seconds", backoff: "linear" } },
+        async () => {
+          if (!this.env.Mediator) return;
+          const mediator = await getMediator(this.env, params.projectId);
+          await mediator.announcePhaseStart({
+            phase: phase.phase,
+            label: phase.label,
+            agentId: phase.agentId,
+          });
+        },
+      );
+
       const result = await step.do(
         `phase:${phase.phase}`,
         { retries: { limit: 2, delay: "5 seconds", backoff: "linear" } },
