@@ -16,6 +16,7 @@ import { isDevelopment, type Env } from "../env";
 import { memoryStore } from "../db";
 import { swarmNameForUser } from "../swarm";
 import { getMediator, mediatorToSpine } from "../agents/mediator";
+import { activityBootstrapAccepted, activityFirstName } from "./activity-copy";
 
 function slugify(input: string): string {
   return (
@@ -184,7 +185,10 @@ export async function cfStartRun(
       id: crypto.randomUUID(),
       project_id: projectId,
       run_id: runId,
-      message: "Run accepted by Nexus on Cloudflare",
+      message: activityBootstrapAccepted(
+        activityFirstName(auth.user.displayName),
+        suggested,
+      ),
       kind: "gate",
       agent: "Nexus",
       phase: "intake",
@@ -216,6 +220,7 @@ export async function cfStartRun(
       projectId,
       swarmName,
       userId: auth.user.id,
+      displayName: auth.user.displayName || "",
       title: suggested,
       brief: idea,
       runId,

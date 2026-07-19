@@ -32,3 +32,24 @@ export function formatRelativeTime(value?: string | null, nowMs = Date.now()): s
     return trimmed.slice(0, 10);
   }
 }
+
+/** Clock time for activity rows (e.g. "2:04 PM"). Falls back for legacy "14:02" mocks. */
+export function formatClockTime(value?: string | null): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (/^\d{1,2}:\d{2}(\s?[AP]M)?$/i.test(trimmed)) return trimmed;
+
+  const ms = Date.parse(trimmed);
+  if (Number.isNaN(ms)) return trimmed;
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(ms));
+  } catch {
+    return trimmed;
+  }
+}

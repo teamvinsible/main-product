@@ -37,7 +37,7 @@ import {
   SPEC_ICONS,
 } from "../components/icons";
 import { formatStatusLabel, specStatusMeta } from "../lib/status";
-import { formatRelativeTime } from "../lib/time";
+import { formatClockTime, formatRelativeTime } from "../lib/time";
 import { celebrateShip } from "../lib/celebrate";
 
 const STAGES: { key: SpineStage; label: string; num: number }[] = [
@@ -217,53 +217,78 @@ function decisionStatusLabel(status: DecisionItem["status"]) {
   return "Open";
 }
 
-const ACTIVITY_STAGES = [
-  { key: "drafting", label: "Strategy" },
-  { key: "cross-review", label: "Build" },
-  { key: "consolidating", label: "Quality" },
-  { key: "ready", label: "Launch" },
-  { key: "other", label: "Other" },
-] as const;
+function ActivityFeed({ items, compact = false }: { items: ActivityItem[]; compact?: boolean }) {
+  const bodyRef = useRef<HTMLOListElement>(null);
+  const typedIdRef = useRef<string | null>(null);
+  const [typingId, setTypingId] = useState<string | null>(null);
+  const [typedLen, setTypedLen] = useState(0);
+  const reduceMotionRef = useRef(false);
 
-function activityStage(item: ActivityItem): (typeof ACTIVITY_STAGES)[number]["key"] {
-  const phase = (item.phase || "").toLowerCase();
-  if (phase === "drafting" || /strategy|product|design|intake|brief|research/.test(phase)) return "drafting";
-  if (phase === "cross-review" || /architect|eng|backend|frontend|build/.test(phase)) return "cross-review";
-  if (phase === "consolidating" || /qa|devops|lead|mediator|consolidat/.test(phase)) return "consolidating";
-  if (phase === "ready" || /launch|growth|preview|publish|deploy|market|complete/.test(phase)) return "ready";
-  return "other";
-}
+  // API stores newest-first; chat-style feed wants oldest → newest (latest at bottom).
+  const chronological = [...items].reverse();
+  const latest = chronological[chronological.length - 1] ?? null;
 
-function ActivityTerminal({ items, compact = false }: { items: ActivityItem[]; compact?: boolean }) {
+  useEffect(() => {
+    reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  useEffect(() => {
+    if (!latest) return;
+    if (typedIdRef.current === latest.id) return;
+    typedIdRef.current = latest.id;
+    if (reduceMotionRef.current) {
+      setTypingId(null);
+      setTypedLen(latest.message.length);
+      return;
+    }
+    setTypingId(latest.id);
+    setTypedLen(0);
+  }, [latest?.id, latest?.message]);
+
+  useEffect(() => {
+    if (!latest || typingId !== latest.id) return;
+    if (typedLen >= latest.message.length) {
+      setTypingId(null);
+      return;
+    }
+    const delay = latest.message[typedLen] === " " ? 12 : 16;
+    const timer = window.setTimeout(() => setTypedLen((n) => n + 1), delay);
+    return () => window.clearTimeout(timer);
+  }, [typingId, typedLen, latest]);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: reduceMotionRef.current ? "auto" : "smooth",
+    });
+  }, [chronological.length, typedLen, typingId]);
+
   return (
     <div
-      className={`activity-terminal ${compact ? "is-compact" : ""}`}
+      className={`activity-feed ${compact ? "is-compact" : ""}`}
       role="log"
-      aria-label="Agent activity log"
+      aria-label="Crew activity"
       aria-live="polite"
       aria-relevant="additions"
     >
-      <div className="activity-terminal-bar">
-        <span className="activity-terminal-dots" aria-hidden>
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="activity-terminal-title">crew-run.log</span>
-        <span className="activity-terminal-live">live</span>
-      </div>
-      <ol className="activity-terminal-body">
-        {items.map((item) => (
-          <li key={item.id}>
-            <time>{formatRelativeTime(item.at)}</time>
-            <span className="activity-terminal-prompt">›</span>
-            <span className={`activity-terminal-stage stage-${activityStage(item)}`}>
-              {activityStage(item)}
-            </span>
-            <span className="activity-terminal-agent">{(item.agent || "system").toLowerCase()}</span>
-            <span className="activity-terminal-message">{item.message}</span>
-          </li>
-        ))}
+      <ol className="activity-feed-body" ref={bodyRef}>
+        {chronological.map((item) => {
+          const isTyping = typingId === item.id;
+          const text = isTyping ? item.message.slice(0, typedLen) : item.message;
+          return (
+            <li key={item.id} className={isTyping ? "is-typing" : undefined}>
+              <time dateTime={item.at} title={formatRelativeTime(item.at)}>
+                {formatClockTime(item.at)}
+              </time>
+              <p className="activity-feed-message">
+                {text}
+                {isTyping ? <span className="activity-feed-caret" aria-hidden /> : null}
+              </p>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -1218,7 +1243,7 @@ export function SpinePage() {
             spine.activity.length === 0 ? (
               <p className="muted" style={{ fontSize: 13 }}>Waiting for agent activity…</p>
             ) : (
-              <ActivityTerminal items={spine.activity.slice(0, 10)} compact />
+              <ActivityFeed items={spine.activity.slice(0, 10)} compact />
             )
           )}
 
@@ -1488,7 +1513,7 @@ export function SpinePage() {
         ) : null}
 
         {modal?.type === "activity" ? (
-          spine.activity.length ? <ActivityTerminal items={spine.activity} /> : <p className="muted">No activity yet.</p>
+          spine.activity.length ? <ActivityFeed items={spine.activity} /> : <p className="muted">No activity yet.</p>
         ) : null}
 
         {modal?.type === "health" ? (
