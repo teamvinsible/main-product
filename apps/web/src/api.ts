@@ -28,6 +28,9 @@ async function resolveToken(): Promise<string | null> {
   return getAccessToken();
 }
 
+/** Worker origin for deployed Pages; empty in dev where Vite proxies /api. */
+const API_BASE = (import.meta.env.VITE_API_ORIGIN || "").replace(/\/$/, "");
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await resolveToken();
   const headers: Record<string, string> = {
@@ -36,7 +39,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
   });
