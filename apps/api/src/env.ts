@@ -58,9 +58,31 @@ export function allowedOrigins(env: Env): string[] {
   return raw.split(",").map((value) => value.trim()).filter(Boolean);
 }
 
+/**
+ * Entries like "https://*.example.pages.dev" allow any single-label subdomain —
+ * Cloudflare Pages mints one preview hostname per deployment.
+ */
+export function isAllowedOrigin(env: Env, origin: string): boolean {
+  if (!origin) return false;
+  for (const entry of allowedOrigins(env)) {
+    if (entry === origin) return true;
+    if (entry.startsWith("https://*.")) {
+      const suffix = entry.slice("https://*".length); // ".example.pages.dev"
+      if (
+        origin.startsWith("https://") &&
+        origin.endsWith(suffix) &&
+        /^[a-z0-9-]+$/i.test(origin.slice("https://".length, -suffix.length))
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function corsHeaders(env: Env, request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  if (origin && allowedOrigins(env).includes(origin)) {
+  if (isAllowedOrigin(env, origin)) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
