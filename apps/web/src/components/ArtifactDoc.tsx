@@ -37,23 +37,21 @@ function detectKind(path?: string | null, contentType?: string | null, content?:
   const ext = extOf(path);
   const mime = (contentType || "").toLowerCase();
 
-  if (ext === "html" || ext === "htm" || mime.includes("text/html")) return "html";
-  if (ext === "json" || mime.includes("application/json") || mime.includes("text/json")) return "json";
-  if (
-    ext === "md" ||
-    ext === "markdown" ||
-    ext === "mdx" ||
-    ext === "txt" ||
-    mime.includes("text/markdown") ||
-    mime.includes("text/x-markdown") ||
-    mime.includes("text/plain")
-  ) {
-    return "markdown";
-  }
+  // File extension wins — R2/metadata MIME is often wrong (e.g. text/html on a .md).
+  if (ext === "md" || ext === "markdown" || ext === "mdx") return "markdown";
+  if (ext === "html" || ext === "htm") return "html";
+  if (ext === "json") return "json";
   if (
     ["ts", "tsx", "js", "jsx", "mjs", "cjs", "css", "scss", "less", "py", "rs", "go", "java", "kt", "sql", "sh", "yml", "yaml", "toml", "xml", "svg"].includes(ext)
   ) {
     return "code";
+  }
+  if (ext === "txt") return "markdown";
+
+  if (mime.includes("text/html")) return "html";
+  if (mime.includes("application/json") || mime.includes("text/json")) return "json";
+  if (mime.includes("text/markdown") || mime.includes("text/x-markdown") || mime.includes("text/plain")) {
+    return "markdown";
   }
 
   const text = (content || "").trim();

@@ -199,7 +199,7 @@ export async function writePhaseArtifact(
       const hint = opts.briefHint || `You are the ${opts.label} agent on Teamvinsible.`;
       const text = await deepseekText(
         env,
-        `${hint}\n\nWrite a concise, well-structured markdown artifact. No preamble.\n\nTitle: ${opts.title}\nPhase: ${opts.phase}\nBrief:\n${opts.brief}`,
+        `${hint}\n\nWrite a concise, well-structured markdown artifact. Output ONLY the markdown body — no preamble, no surrounding code fences (\`\`\`).\n\nTitle: ${opts.title}\nPhase: ${opts.phase}\nBrief:\n${opts.brief}`,
         { maxTokens: 1400 },
       );
       if (text) body = text;
