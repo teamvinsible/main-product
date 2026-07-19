@@ -18,7 +18,7 @@ import { isDevelopment, type Env } from "../env";
 import { memoryStore } from "../db";
 import { swarmNameForUser } from "../swarm";
 import { getMediator, mediatorToSpine } from "../agents/mediator";
-import { activityBootstrapAccepted, activityFirstName, activityRestarted } from "./activity-copy";
+import { activityBootstrapAccepted, activityFirstName, activityRestarted, activityStopped } from "./activity-copy";
 
 function slugify(input: string): string {
   return (
@@ -271,6 +271,101 @@ export async function cfStartRun(
   return { ok: true, name: swarmName, swarmName, projectId, runId };
 }
 
+async function resolveActiveRunId(
+  env: Env,
+  projectId: string,
+): Promise<string | null> {
+  let previousRunId: string | null = null;
+  if (hasD1(env)) {
+    const latest = await d1LatestRun(env, projectId);
+    previousRunId = latest?.id || null;
+  }
+  if (env.Mediator) {
+    try {
+      const mediator = await getMediator(env, projectId);
+      const snap = await mediator.getSnapshot();
+      if (snap.runId) previousRunId = previousRunId || snap.runId;
+    } catch (err) {
+      console.warn(JSON.stringify({ event: "run.resolve_id_failed", error: String(err) }));
+    }
+  }
+  return previousRunId;
+}
+
+async function terminateWorkflowInstance(env: Env, runId: string | null): Promise<void> {
+  if (!env.CREW_WORKFLOW || !runId) return;
+  try {
+    const instance = await env.CREW_WORKFLOW.get(runId);
+    await instance.terminate();
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "run.workflow_terminate_skipped",
+        runId,
+        error: String(err),
+      }),
+    );
+  }
+}
+
+/** Halt the in-flight crew without starting a new run. */
+export async function cfStopRun(
+  env: Env,
+  auth: Authed,
+  projectKey: string,
+): Promise<{ ok: boolean; projectId: string; runId: string | null; status: "stopped" }> {
+  const project = await cfGetProject(env, auth.user.id, projectKey);
+  if (!project) throw new Error("Project not found");
+
+  const name = activityFirstName(auth.user.displayName);
+  const previousRunId = await resolveActiveRunId(env, project.id);
+  await terminateWorkflowInstance(env, previousRunId);
+
+  if (hasD1(env)) {
+    if (previousRunId) {
+      await d1UpdateRun(env, previousRunId, {
+        status: "stopped",
+        current_phase: "stopped",
+      });
+    }
+    await d1UpdateProject(env, project.id, { status: "stopped" });
+    await d1AddActivity(env, {
+      id: crypto.randomUUID(),
+      project_id: project.id,
+      run_id: previousRunId,
+      message: activityStopped(name, project.title),
+      kind: "gate",
+      agent: "Nexus",
+      phase: "stopped",
+    });
+    await d1CreateNotification(env, {
+      userId: auth.user.id,
+      projectId: project.id,
+      runId: previousRunId,
+      kind: "run.stopped",
+      title: "Run stopped",
+      message: `${project.title} was stopped. Restart when you're ready to continue.`,
+      metadata: { swarmName: project.swarmName },
+    });
+  } else if (isDevelopment(env)) {
+    memoryStore.updatePreview(project.id, { status: "stopped" });
+  } else {
+    throw new Error("D1 binding is unavailable");
+  }
+
+  if (env.Mediator) {
+    const mediator = await getMediator(env, project.id);
+    await mediator.abortRun();
+  }
+
+  return {
+    ok: true,
+    projectId: project.id,
+    runId: previousRunId,
+    status: "stopped",
+  };
+}
+
 /** Stop the in-flight crew (if any) and start a fresh run on the same project/brief. */
 export async function cfRestartRun(
   env: Env,
@@ -281,38 +376,8 @@ export async function cfRestartRun(
   if (!project) throw new Error("Project not found");
 
   const name = activityFirstName(auth.user.displayName);
-  let previousRunId: string | null = null;
-
-  if (hasD1(env)) {
-    const latest = await d1LatestRun(env, project.id);
-    previousRunId = latest?.id || null;
-  }
-
-  if (env.Mediator) {
-    try {
-      const mediator = await getMediator(env, project.id);
-      const snap = await mediator.getSnapshot();
-      if (snap.runId) previousRunId = previousRunId || snap.runId;
-    } catch (err) {
-      console.warn(JSON.stringify({ event: "restart.mediator_snapshot_failed", error: String(err) }));
-    }
-  }
-
-  if (env.CREW_WORKFLOW && previousRunId) {
-    try {
-      const instance = await env.CREW_WORKFLOW.get(previousRunId);
-      await instance.terminate();
-    } catch (err) {
-      // Already complete / terminated / missing — continue with a fresh run.
-      console.warn(
-        JSON.stringify({
-          event: "restart.workflow_terminate_skipped",
-          runId: previousRunId,
-          error: String(err),
-        }),
-      );
-    }
-  }
+  const previousRunId = await resolveActiveRunId(env, project.id);
+  await terminateWorkflowInstance(env, previousRunId);
 
   if (hasD1(env) && previousRunId) {
     await d1UpdateRun(env, previousRunId, {
@@ -349,7 +414,7 @@ export async function cfRestartRun(
       runId,
       kind: "run.restarted",
       title: "Run restarted",
-      message: `${project.title} was stopped and started again from the beginning.`,
+      message: `${project.title} was started again from the beginning.`,
       metadata: { swarmName: project.swarmName },
     });
   } else if (isDevelopment(env)) {

@@ -387,6 +387,24 @@ export function restartRun(project: string) {
   });
 }
 
+export function stopRun(project: string) {
+  if (isMockMode()) {
+    return Promise.resolve({
+      ok: true,
+      projectId: project,
+      runId: "mock-stop-run",
+      status: "stopped" as const,
+    });
+  }
+  return req<{ ok: boolean; projectId: string; runId: string | null; status: "stopped" }>("/api/run/stop", {
+    method: "POST",
+    body: JSON.stringify({ project }),
+  }).then((data) => {
+    invalidateSpineCache(project);
+    return data;
+  });
+}
+
 export function fetchHealth() {
   if (isMockMode()) {
     return Promise.resolve({ ok: true, swarm: false, platformHost: "mock", auth: false, sandbox: false });

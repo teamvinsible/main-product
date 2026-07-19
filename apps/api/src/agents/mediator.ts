@@ -22,6 +22,7 @@ import {
   activityPhaseDone,
   activityPhaseStart,
   activityRestarted,
+  activityStopped,
 } from "../orchestrator/activity-copy";
 import { baseCrewAgents, CREW_PHASES } from "../orchestrator/phases";
 
@@ -318,6 +319,36 @@ export class MediatorAgent extends Agent<Env, MediatorState> {
       kind: "info",
       agent: "Nexus",
       phase: input.phase,
+    });
+    return this.state;
+  }
+
+  /** Stop the crew without starting a new run. */
+  @callable()
+  async abortRun(): Promise<MediatorState> {
+    const now = new Date().toISOString();
+    const name = this.#userName();
+    this.setState({
+      ...this.state,
+      status: "stopped",
+      agents: baseAgents().map((a) => ({ ...a, signal: "standby" as const })),
+      workstreams: this.state.workstreams.map((ws) =>
+        ws.status === "in-progress" || ws.status === "review" || ws.status === "drafting"
+          ? { ...ws, status: "queued" as const }
+          : ws,
+      ),
+      activity: [
+        {
+          id: crypto.randomUUID(),
+          at: now,
+          message: activityStopped(name, this.state.title),
+          kind: "gate" as const,
+          agent: "Nexus",
+          phase: "stopped",
+        },
+        ...this.state.activity,
+      ].slice(0, 40),
+      updatedAt: now,
     });
     return this.state;
   }
