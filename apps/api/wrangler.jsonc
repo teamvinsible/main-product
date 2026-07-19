@@ -52,15 +52,17 @@
   "durable_objects": {
     "bindings": [
       { "name": "Mediator", "class_name": "MediatorAgent" },
-      { "name": "DomainAgent", "class_name": "DomainAgent" },
-      { "name": "Sandbox", "class_name": "Sandbox" },
-      { "name": "SwarmRuntime", "class_name": "SwarmRuntime" }
+      { "name": "DomainAgent", "class_name": "DomainAgent" }
+      // Sandbox + SwarmRuntime bindings require Containers (Workers Paid plan).
+      // After upgrading, restore:
+      //   { "name": "Sandbox", "class_name": "Sandbox" },
+      //   { "name": "SwarmRuntime", "class_name": "SwarmRuntime" }
     ]
   },
-  "containers": [
-    { "class_name": "Sandbox", "image": "./Dockerfile", "instance_type": "lite", "max_instances": 5 },
-    { "class_name": "SwarmRuntime", "image": "./Dockerfile.runtime", "instance_type": "basic", "max_instances": 10 }
-  ],
+  // "containers": [
+  //   { "class_name": "Sandbox", "image": "./Dockerfile", "instance_type": "lite", "max_instances": 5 },
+  //   { "class_name": "SwarmRuntime", "image": "./Dockerfile.runtime", "instance_type": "basic", "max_instances": 10 }
+  // ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Sandbox", "MediatorAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["SwarmRuntime"] },
