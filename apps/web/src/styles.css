@@ -6228,7 +6228,7 @@ a:hover {
 
 .activity-terminal-body li {
   display: grid;
-  grid-template-columns: 38px 9px 82px 70px minmax(0, 1fr);
+  grid-template-columns: 56px 9px 82px 70px minmax(0, 1fr);
   align-items: baseline;
   gap: 7px;
   padding: 3px 2px;
@@ -6242,6 +6242,9 @@ a:hover {
 .activity-terminal-body time {
   color: #687169;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .activity-terminal-prompt {
@@ -6275,7 +6278,7 @@ a:hover {
 }
 
 .activity-terminal.is-compact .activity-terminal-body li {
-  grid-template-columns: 36px 8px minmax(64px, 78px) minmax(0, 1fr);
+  grid-template-columns: 52px 8px minmax(64px, 78px) minmax(0, 1fr);
   align-items: start;
   gap: 5px;
 }
@@ -6291,7 +6294,7 @@ a:hover {
 
 @media (max-width: 600px) {
   .activity-terminal-body li {
-    grid-template-columns: 36px 8px 70px minmax(0, 1fr);
+    grid-template-columns: 52px 8px 70px minmax(0, 1fr);
     gap: 5px;
   }
 
