@@ -32,12 +32,35 @@ jobs:
           npm test -w @teamvinsible/api
       - name: Deploy API Worker (with containers)
         run: npm run deploy -w @teamvinsible/api
+      # Repository secrets are the single source of truth for Worker secrets.
+      # SUPABASE_URL reuses VITE_SUPABASE_URL (same value, public anyway).
+      - name: Sync Worker secrets from repository secrets
+        working-directory: apps/api
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          node -e '
+            const keys = ["SUPABASE_URL","SUPABASE_JWT_SECRET","SUPABASE_SERVICE_ROLE_KEY","DEEPSEEK_API_KEY"];
+            const out = {};
+            for (const k of keys) if (process.env[k]) out[k] = process.env[k];
+            const missing = keys.filter((k) => !process.env[k]);
+            if (missing.length) console.log("::warning::Missing repo secrets (Worker features degraded): " + missing.join(", "));
+            require("fs").writeFileSync("secrets.json", JSON.stringify(out));
+            console.log("Syncing " + Object.keys(out).length + " secret(s) to the Worker");
+          '
+          if [ "$(node -p 'Object.keys(require("./secrets.json")).length')" != "0" ]; then
+            npx wrangler secret bulk secrets.json
+          fi
+          rm -f secrets.json
       - name: Build web (live mode)
         run: npm run build -w @teamvinsible/web
         env:
           VITE_USE_MOCK: "false"
           VITE_API_ORIGIN: https://teamvinsible-api.teamvinsible.workers.dev
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
       - name: Deploy web to Pages
         run: npx wrangler pages deploy apps/web/dist --project-name teamvinsible-web --branch main
