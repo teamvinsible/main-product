@@ -511,6 +511,7 @@ export function improviseProject(project: string) {
       filesWritten: ["index.html", "package.json"],
       summary: "Demo improvise — set VITE_USE_MOCK=false to run live.",
       publishUrl: `https://${project}.teamvinsible.com`,
+      error: undefined as string | undefined,
     });
   }
   return req<{ ok: boolean; filesWritten: string[]; summary: string; publishUrl: string | null; error?: string }>(
