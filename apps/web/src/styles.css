@@ -1514,10 +1514,10 @@ a:hover {
   flex-shrink: 0;
 }
 
-.github-card-title {
+.github-card .preview-card-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  line-height: 1;
 }
 
 .github-card-disconnect {

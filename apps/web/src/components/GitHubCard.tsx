@@ -35,9 +35,8 @@ export function GitHubCard({
       <header className="preview-card-head">
         <div>
           <p className="orch-kicker">Code</p>
-          <h3 className="preview-card-title github-card-title">
+          <h3 className="preview-card-title">
             <IconGitHub size={15} aria-hidden />
-            {status?.login ?? "GitHub"}
           </h3>
         </div>
         {status?.repoUrl ? (
