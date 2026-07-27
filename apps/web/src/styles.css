@@ -7072,7 +7072,7 @@ a:hover {
 
   .bento-item-preview {
     grid-column: span 2;
-    grid-row: span 4;
+    grid-row: span 6;
   }
 
   .bento-item-focus {
