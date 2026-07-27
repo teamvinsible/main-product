@@ -361,7 +361,6 @@ export function SpinePage() {
   const [improvBusy, setImprovBusy] = useState(false);
   const [improvError, setImprovError] = useState<string | null>(null);
   const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
-  const [githubStatusLoading, setGithubStatusLoading] = useState(false);
   const [githubConnectBusy, setGithubConnectBusy] = useState(false);
   const [githubPushBusy, setGithubPushBusy] = useState(false);
   const [githubPushError, setGithubPushError] = useState<string | null>(null);
@@ -601,14 +600,11 @@ export function SpinePage() {
 
   // Fetch GitHub status and watch for ?github=connected callback param
   const loadGithubStatus = useCallback(async (pid: string) => {
-    setGithubStatusLoading(true);
     try {
       const s = await fetchGitHubStatus(pid);
       setGithubStatus(s);
     } catch {
       // silently ignore
-    } finally {
-      setGithubStatusLoading(false);
     }
   }, []);
 
