@@ -1276,22 +1276,20 @@ export function SpinePage() {
               improvBusy={improvBusy}
               improvError={improvError}
             />
-            <GitHubCard
-              projectId={spine.project?.id ?? ""}
-              status={githubStatus}
-              loading={githubStatusLoading}
-              pushBusy={githubPushBusy}
-              pushError={githubPushError}
-              connectBusy={githubConnectBusy}
-              canPush={
-                Boolean(spine.project) &&
-                (spine.project!.stage === "ready" ||
-                  /completed|ready|published|preview/i.test(spine.project!.status))
-              }
-              onConnect={onGithubConnect}
-              onPush={onGithubPush}
-              onDisconnect={onGithubDisconnect}
-            />
+            {(publishUrl || spine.previewUrl) ? (
+              <GitHubCard
+                projectId={spine.project?.id ?? ""}
+                status={githubStatus}
+                loading={githubStatusLoading}
+                pushBusy={githubPushBusy}
+                pushError={githubPushError}
+                connectBusy={githubConnectBusy}
+                canPush={true}
+                onConnect={onGithubConnect}
+                onPush={onGithubPush}
+                onDisconnect={onGithubDisconnect}
+              />
+            ) : null}
       </BentoItem>
 
       <BentoItem {...bentoItemProps("artifacts")}>

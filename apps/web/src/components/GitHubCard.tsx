@@ -29,12 +29,9 @@ export function GitHubCard({
   return (
     <section className="card github-card" aria-label="GitHub">
       <header className="preview-card-head">
-        <div>
+        <div className="github-card-heading">
+          <IconGitHub size={16} aria-hidden />
           <p className="orch-kicker">Code</p>
-          <h3 className="preview-card-title">
-            <IconGitHub size={14} aria-hidden style={{ marginRight: 6, verticalAlign: "middle" }} />
-            GitHub
-          </h3>
         </div>
         {status?.repoUrl ? (
           <a className="preview-card-open" href={status.repoUrl} target="_blank" rel="noopener noreferrer">

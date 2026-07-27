@@ -1514,6 +1514,13 @@ a:hover {
   overflow: auto;
 }
 
+.github-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+
 .github-card-account {
   display: flex;
   align-items: center;
