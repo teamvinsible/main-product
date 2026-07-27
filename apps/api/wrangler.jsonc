@@ -25,7 +25,7 @@
     {
       "binding": "DB",
       "database_name": "teamvinsible",
-      "database_id": "b199ee8e-f528-4610-affa-3c478ed0b59a",
+      "database_id": "560872a4-850b-45c6-9794-22caa7695603",
       "migrations_dir": "migrations"
     }
   ],
