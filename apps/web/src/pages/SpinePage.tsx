@@ -520,7 +520,6 @@ export function SpinePage() {
     }
   }, [spine?.project]);
 
-<<<<<<< Updated upstream
   const onStopRun = useCallback(() => {
     if (!spine?.project?.id || stopBusy || restartBusy) return;
     const projectId = spine.project.id;
