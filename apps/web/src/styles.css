@@ -1511,32 +1511,13 @@ a:hover {
 
 /* ??? GitHub Card ??? */
 .github-card {
-  overflow: auto;
+  flex-shrink: 0;
 }
 
-.github-card-heading {
+.github-card-title {
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: var(--ink);
-}
-
-.github-card-account {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px 4px;
-  color: var(--ink);
-  font-size: 0.85rem;
-}
-
-.github-card-avatar {
-  border-radius: 50%;
-  display: block;
-}
-
-.github-card-login {
-  font-weight: 500;
+  gap: 6px;
 }
 
 .github-card-disconnect {
@@ -6909,16 +6890,14 @@ a:hover {
 .bento-item-preview {
   flex-direction: column;
   gap: 10px;
+  align-items: stretch;
 }
 
-.bento-item-preview > .preview-card {
+.bento-item-preview > .preview-card,
+.bento-item-preview > .github-card {
   height: auto;
   flex-shrink: 0;
-}
-
-.bento-item-preview > .github-card {
-  flex: 1;
-  min-height: 0;
+  width: 100%;
 }
 
 .bento-item.is-editing > .card {

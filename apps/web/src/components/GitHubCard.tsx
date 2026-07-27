@@ -26,16 +26,28 @@ export function GitHubCard({
   onPush,
   onDisconnect,
 }: Props) {
+  const repoShort = status?.repoUrl
+    ? status.repoUrl.replace("https://github.com/", "")
+    : null;
+
   return (
     <section className="card github-card" aria-label="GitHub">
       <header className="preview-card-head">
-        <div className="github-card-heading">
-          <IconGitHub size={16} aria-hidden />
+        <div>
           <p className="orch-kicker">Code</p>
+          <h3 className="preview-card-title github-card-title">
+            <IconGitHub size={15} aria-hidden />
+            {status?.login ?? "GitHub"}
+          </h3>
         </div>
         {status?.repoUrl ? (
-          <a className="preview-card-open" href={status.repoUrl} target="_blank" rel="noopener noreferrer">
-            View repo
+          <a
+            className="preview-card-open"
+            href={status.repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Repo
             <IconExternal size={13} aria-hidden />
           </a>
         ) : null}
@@ -49,30 +61,28 @@ export function GitHubCard({
         </div>
       ) : status?.connected ? (
         <>
-          <div className="github-card-account">
-            {status.avatarUrl ? (
-              <img className="github-card-avatar" src={status.avatarUrl} alt={status.login ?? ""} width={24} height={24} />
-            ) : (
-              <IconGitHub size={18} aria-hidden />
-            )}
-            <span className="github-card-login">{status.login}</span>
-          </div>
-          {status.repoUrl ? (
-            <a className="preview-card-url" href={status.repoUrl} target="_blank" rel="noopener noreferrer" title={status.repoUrl}>
-              {status.repoUrl.replace("https://github.com/", "")}
+          {repoShort ? (
+            <a
+              className="preview-card-url"
+              href={status.repoUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={status.repoUrl!}
+            >
+              {repoShort}
             </a>
           ) : (
             <div className="preview-card-empty">
-              <p className="muted">{canPush ? "Ready to push your code to a private repo." : "Finish the crew run to push your code."}</p>
+              <p className="muted">Push your code to a private GitHub repo.</p>
             </div>
           )}
           <div className="preview-card-actions">
             {canPush ? (
               <Button type="primary" size="small" loading={pushBusy} onClick={onPush}>
-                {status.repoUrl ? "Re-push to GitHub" : "Push to GitHub"}
+                {repoShort ? "Re-push" : "Push to GitHub"}
               </Button>
             ) : null}
-            <Button type="text" size="small" onClick={onDisconnect} className="github-card-disconnect">
+            <Button type="text" size="small" className="github-card-disconnect" onClick={onDisconnect}>
               Disconnect
             </Button>
           </div>
@@ -80,7 +90,7 @@ export function GitHubCard({
       ) : (
         <>
           <div className="preview-card-empty">
-            <p className="muted">Connect GitHub to get a private repo with your generated code.</p>
+            <p className="muted">Get a private repo with your generated code.</p>
           </div>
           <div className="preview-card-actions">
             <Button
