@@ -32,13 +32,11 @@ export function GitHubCard({
 
   return (
     <section className="card github-card" aria-label="GitHub">
-      <header className="preview-card-head">
-        <div>
-          <p className="orch-kicker">Code</p>
-          <h3 className="preview-card-title">
-            <IconGitHub size={15} aria-hidden />
-          </h3>
-        </div>
+      <div className="github-card-row">
+        <span className="github-card-label">
+          <IconGitHub size={13} aria-hidden />
+          Code
+        </span>
         {status?.repoUrl ? (
           <a
             className="preview-card-open"
@@ -47,18 +45,14 @@ export function GitHubCard({
             rel="noopener noreferrer"
           >
             Repo
-            <IconExternal size={13} aria-hidden />
+            <IconExternal size={12} aria-hidden />
           </a>
         ) : null}
-      </header>
+      </div>
 
       {pushError ? <p className="preview-card-error">{pushError}</p> : null}
 
-      {loading ? (
-        <div className="preview-card-empty">
-          <p className="muted">Checking…</p>
-        </div>
-      ) : status?.connected ? (
+      {loading ? null : status?.connected ? (
         <>
           {repoShort ? (
             <a
@@ -70,11 +64,7 @@ export function GitHubCard({
             >
               {repoShort}
             </a>
-          ) : (
-            <div className="preview-card-empty">
-              <p className="muted">Push your code to a private GitHub repo.</p>
-            </div>
-          )}
+          ) : null}
           <div className="preview-card-actions">
             {canPush ? (
               <Button type="primary" size="small" loading={pushBusy} onClick={onPush}>
@@ -87,21 +77,16 @@ export function GitHubCard({
           </div>
         </>
       ) : (
-        <>
-          <div className="preview-card-empty">
-            <p className="muted">Get a private repo with your generated code.</p>
-          </div>
-          <div className="preview-card-actions">
-            <Button
-              size="small"
-              loading={connectBusy}
-              onClick={onConnect}
-              icon={<IconGitHub size={13} aria-hidden />}
-            >
-              Connect GitHub
-            </Button>
-          </div>
-        </>
+        <div className="preview-card-actions">
+          <Button
+            size="small"
+            loading={connectBusy}
+            onClick={onConnect}
+            icon={<IconGitHub size={13} aria-hidden />}
+          >
+            Connect GitHub
+          </Button>
+        </div>
       )}
     </section>
   );
