@@ -1480,6 +1480,35 @@ a:hover {
   margin-top: 8px;
 }
 
+.preview-card-improvise-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.preview-card-improvise-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--muted, #9a9690);
+}
+
+.preview-card-improvise-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, #6ea8ff);
+  animation: improvise-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes improvise-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
 /* ??? Brief + stages ??? */
 .brief-row {
   display: flex;
@@ -6133,7 +6162,7 @@ a:hover {
 .legal-aside nav a { padding: 0.9rem 0; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-size: 0.8rem; }
 .legal-aside nav a:hover,
 .legal-aside nav a.is-active { color: var(--ink); }
-.legal-aside nav a.is-active::before { content: "???"; margin-right: 0.5rem; color: var(--blue); }
+.legal-aside nav a.is-active::before { content: "›"; margin-right: 0.5rem; color: var(--blue); }
 
 .legal-document { min-width: 0; }
 .legal-title-block { padding-bottom: 4rem; border-bottom: 1px solid var(--line-2); }
@@ -7131,7 +7160,7 @@ a:hover {
   }
 }
 
-/* Brand loader ??? the logo mark drawing itself in a loop */
+/* Brand loader — the logo mark drawing itself in a loop */
 .brand-loader {
   display: grid;
   place-items: center;

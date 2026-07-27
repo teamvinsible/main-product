@@ -1,5 +1,5 @@
 import { Button } from "antd";
-import { IconExternal } from "./icons";
+import { IconExternal, IconWand } from "./icons";
 
 interface Props {
   /** Live shareable URL (published app). Preferred over sandbox preview. */
@@ -17,6 +17,9 @@ interface Props {
   canPublish?: boolean;
   /** Celebrate when the run just shipped a live URL. */
   highlight?: boolean;
+  onImprovise?: () => void;
+  improvBusy?: boolean;
+  improvError?: string | null;
 }
 
 function displayHost(url: string) {
@@ -40,8 +43,12 @@ export function PreviewCard({
   onPublish,
   canPublish = false,
   highlight = false,
+  onImprovise,
+  improvBusy,
+  improvError,
 }: Props) {
   const primaryUrl = liveUrl || sandboxUrl || null;
+  const canImprovise = Boolean(onImprovise && (liveUrl || canPublish));
 
   return (
     <section
@@ -68,6 +75,7 @@ export function PreviewCard({
 
       {previewError ? <p className="preview-card-error">{previewError}</p> : null}
       {publishError ? <p className="preview-card-error">{publishError}</p> : null}
+      {improvError ? <p className="preview-card-error">{improvError}</p> : null}
 
       {primaryUrl ? (
         <a
@@ -101,21 +109,39 @@ export function PreviewCard({
         </a>
       ) : null}
 
+      {canImprovise && improvBusy ? (
+        <div className="preview-card-improvise-status">
+          <span className="preview-card-improvise-pulse" aria-hidden />
+          Diagnosing &amp; rewriting…
+        </div>
+      ) : null}
+
       <div className="preview-card-actions">
-        {onPublish ? (
-          <Button
-            type="primary"
-            size="small"
-            loading={publishBusy}
-            disabled={!canPublish && !liveUrl}
-            onClick={onPublish}
-          >
-            {liveUrl ? "Republish" : "Publish"}
+        {onPublish && liveUrl ? (
+          <Button type="primary" size="small" loading={publishBusy} onClick={onPublish}>
+            Republish
+          </Button>
+        ) : null}
+        {onPublish && !liveUrl && canPublish ? (
+          <Button type="primary" size="small" loading={publishBusy} onClick={onPublish}>
+            Publish
           </Button>
         ) : null}
         {sandboxAvailable && onStartSandbox ? (
           <Button type="default" size="small" loading={previewBusy} onClick={onStartSandbox}>
             {sandboxUrl ? "Refresh sandbox" : "Sandbox preview"}
+          </Button>
+        ) : null}
+        {canImprovise ? (
+          <Button
+            size="small"
+            loading={improvBusy}
+            disabled={improvBusy}
+            onClick={onImprovise}
+            icon={<IconWand size={13} aria-hidden />}
+            className="preview-card-improvise-btn"
+          >
+            Improvise
           </Button>
         ) : null}
       </div>

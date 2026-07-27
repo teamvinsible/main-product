@@ -178,6 +178,19 @@ export function IconPlus(p: IconProps) {
   );
 }
 
+export function IconWand(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="m15 4 5 5L7 22l-5-5Z" />
+      <path d="m17.5 2.5 1 1" />
+      <path d="m20.5 5.5 1 1" />
+      <path d="m14.5 2.5 1 1" />
+      <path d="m17.5 5.5 1 1" />
+      <path d="m20.5 2.5 1 1" />
+    </svg>
+  );
+}
+
 export function IconLoop(p: IconProps) {
   return (
     <svg {...base(p)}>

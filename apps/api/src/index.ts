@@ -367,6 +367,33 @@ async function handleAuthed(
     return json(env, request, result, result.ok ? 200 : (result.httpStatus || 503));
   }
 
+  if (pathname === "/api/improvise" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 16 * 1024);
+    const key = stringField(body, ["projectId", "project"], { required: true, maxLength: 100 });
+    const project = await cfGetProject(env, auth.user.id, key);
+    if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
+
+    const { improviseApp } = await import("./orchestrator/agent-runner");
+    const result = await improviseApp(env, {
+      projectId: project.id,
+      title: project.title,
+      brief: project.brief,
+      swarmName: project.swarmName,
+    });
+
+    if (result.ok) {
+      const publish = await publishProject(env, {
+        userId: auth.user.id,
+        projectId: project.id,
+        swarmName: project.swarmName,
+        title: project.title,
+      });
+      return json(env, request, { ok: true, filesWritten: result.filesWritten, summary: result.summary, publishUrl: publish.ok ? publish.url : null });
+    }
+    return json(env, request, { ok: false, error: result.summary }, 500);
+  }
+
   if (pathname === "/api/publish/preview" && request.method === "POST") {
     await enforceExpensiveRouteLimit(env, auth, pathname);
     const body = await readJsonObject(request, 16 * 1024);

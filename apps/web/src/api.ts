@@ -504,6 +504,21 @@ export function fetchArtifact(project: string, path: string) {
   return req<{ ok: boolean; path: string; content: string; contentType: string }>(`/api/artifact${q}`);
 }
 
+export function improviseProject(project: string) {
+  if (isMockMode()) {
+    return Promise.resolve({
+      ok: true,
+      filesWritten: ["index.html", "package.json"],
+      summary: "Demo improvise — set VITE_USE_MOCK=false to run live.",
+      publishUrl: `https://${project}.teamvinsible.com`,
+    });
+  }
+  return req<{ ok: boolean; filesWritten: string[]; summary: string; publishUrl: string | null; error?: string }>(
+    "/api/improvise",
+    { method: "POST", body: JSON.stringify({ project }) },
+  );
+}
+
 /** Ask the swarm control plane to skip an agent's phases (proxied via Workers API). */
 export function skipAgent(project: string, agentId: string) {
   if (isMockMode()) {

@@ -18,7 +18,7 @@ import type {
   SpineStage,
   WorkspaceFileCard,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchHealth, fetchSpine, isMockMode, publishProject, restartRun, skipAgent, startPreview, stopRun, subscribeSpine } from "../api";
+import { fetchArtifact, fetchHealth, fetchSpine, improviseProject, isMockMode, publishProject, restartRun, skipAgent, startPreview, stopRun, subscribeSpine } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -358,6 +358,8 @@ export function SpinePage() {
   const [skipBusy, setSkipBusy] = useState(false);
   const [stopBusy, setStopBusy] = useState(false);
   const [restartBusy, setRestartBusy] = useState(false);
+  const [improvBusy, setImprovBusy] = useState(false);
+  const [improvError, setImprovError] = useState<string | null>(null);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -518,6 +520,7 @@ export function SpinePage() {
     }
   }, [spine?.project]);
 
+<<<<<<< Updated upstream
   const onStopRun = useCallback(() => {
     if (!spine?.project?.id || stopBusy || restartBusy) return;
     const projectId = spine.project.id;
@@ -574,6 +577,24 @@ export function SpinePage() {
     });
   }, [spine?.project?.id, spine?.project?.title, restartBusy, stopBusy]);
 
+  const onImprovise = useCallback(async () => {
+    if (!spine?.project) return;
+    setImprovBusy(true);
+    setImprovError(null);
+    try {
+      const result = await improviseProject(spine.project.id);
+      if (!result.ok) {
+        setImprovError(result.error || "Improvise failed");
+      } else {
+        if (result.publishUrl) setPublishUrl(result.publishUrl);
+      }
+    } catch (err) {
+      setImprovError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImprovBusy(false);
+    }
+  }, [spine?.project]);
+
   useEffect(() => {
     if (isMockMode()) {
       setSandboxAvailable(false);
@@ -608,7 +629,6 @@ export function SpinePage() {
         status === "published" ||
         status === "preview");
 
-    // First spine snapshot for this project — remember, don't celebrate history.
     if (shippedSeenRef.current === null) {
       if (spine?.project) shippedSeenRef.current = shipped;
       return;
@@ -1187,6 +1207,9 @@ export function SpinePage() {
                 (spine.project!.stage === "ready" ||
                   /completed|ready|published|preview/i.test(spine.project!.status))
               }
+              onImprovise={onImprovise}
+              improvBusy={improvBusy}
+              improvError={improvError}
             />
       </BentoItem>
 
