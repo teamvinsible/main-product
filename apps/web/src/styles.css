@@ -1511,7 +1511,7 @@ a:hover {
 
 /* ??? GitHub Card ??? */
 .github-card {
-  margin-top: 10px;
+  overflow: auto;
 }
 
 .github-card-account {
@@ -6897,6 +6897,21 @@ a:hover {
   grid-column: auto;
   grid-row: auto;
   height: 100%;
+}
+
+.bento-item-preview {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bento-item-preview > .preview-card {
+  height: auto;
+  flex-shrink: 0;
+}
+
+.bento-item-preview > .github-card {
+  flex: 1;
+  min-height: 0;
 }
 
 .bento-item.is-editing > .card {
