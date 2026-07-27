@@ -18,6 +18,8 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   DEV_AUTH_BYPASS?: string;
   LEGACY_SWARM?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_MODEL?: string;
   CF_ACCOUNT_ID?: string;

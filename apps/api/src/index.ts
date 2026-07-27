@@ -420,6 +420,58 @@ async function handleAuthed(
     });
   }
 
+  // ── GitHub integration ──────────────────────────────────────────────────────
+
+  if (pathname === "/api/github/status") {
+    const { dbGetGitHubAccount, dbGetGitHubRepo } = await import("./github");
+    const body = await readJsonObject(request, 4 * 1024).catch(() => ({}));
+    const projectKey = stringField(body, "project", { maxLength: 100 });
+    const account = await dbGetGitHubAccount(env, auth.user.id);
+    let repo = null;
+    if (account && projectKey) {
+      const project = await cfGetProject(env, auth.user.id, projectKey);
+      if (project) repo = await dbGetGitHubRepo(env, project.id);
+    }
+    return json(env, request, {
+      connected: Boolean(account),
+      login: account?.login ?? null,
+      avatarUrl: account?.avatarUrl ?? null,
+      repoUrl: repo?.htmlUrl ?? null,
+    });
+  }
+
+  if (pathname === "/api/github/connect/start" && request.method === "POST") {
+    if (!env.GITHUB_CLIENT_ID) return json(env, request, { error: "GitHub OAuth not configured" }, 503);
+    const body = await readJsonObject(request, 4 * 1024);
+    const projectKey = stringField(body, "project", { maxLength: 100 });
+    const project = projectKey ? await cfGetProject(env, auth.user.id, projectKey) : null;
+    const { startGitHubOAuth } = await import("./github");
+    const result = await startGitHubOAuth(env, auth.user.id, project?.id ?? null);
+    return json(env, request, result);
+  }
+
+  if (pathname === "/api/github/disconnect" && request.method === "POST") {
+    const { dbDeleteGitHubAccount } = await import("./github");
+    await dbDeleteGitHubAccount(env, auth.user.id);
+    return json(env, request, { ok: true });
+  }
+
+  if (pathname === "/api/github/push" && request.method === "POST") {
+    await enforceExpensiveRouteLimit(env, auth, pathname);
+    const body = await readJsonObject(request, 4 * 1024);
+    const projectKey = stringField(body, "project", { required: true, maxLength: 100 });
+    const project = await cfGetProject(env, auth.user.id, projectKey);
+    if (!project) return json(env, request, { ok: false, error: "Project not found" }, 404);
+    const { pushWorkspaceToGitHub } = await import("./github");
+    const result = await pushWorkspaceToGitHub(env, {
+      userId: auth.user.id,
+      projectId: project.id,
+      title: project.title,
+      swarmName: project.swarmName,
+    });
+    return json(env, request, result, result.ok ? 200 : 500);
+  }
+
   return json(env, request, { error: "Not found", path: pathname }, 404);
 }
 
@@ -464,6 +516,18 @@ export default {
       const slug = decodeURIComponent(legacyPub[1]!);
       const rest = legacyPub[2] && legacyPub[2] !== "/" ? legacyPub[2] : "/";
       return Response.redirect(`https://${slug}.${env.PLATFORM_HOST}${rest}${url.search}`, 308);
+    }
+
+    // GitHub OAuth callback — public, GitHub redirects here
+    if (pathname === "/api/github/callback" && request.method === "GET") {
+      const code = url.searchParams.get("code") || "";
+      const state = url.searchParams.get("state") || "";
+      if (!code || !state) return Response.redirect(`https://${env.PLATFORM_HOST}?github=error`, 302);
+      const { handleGitHubCallback } = await import("./github");
+      const { redirectTo } = await handleGitHubCallback(env, code, state).catch(() => ({
+        redirectTo: `https://${env.PLATFORM_HOST}?github=error`,
+      }));
+      return Response.redirect(redirectTo, 302);
     }
 
     if (pathname === "/api/health") {

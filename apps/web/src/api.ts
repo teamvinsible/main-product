@@ -520,6 +520,43 @@ export function improviseProject(project: string) {
   );
 }
 
+// ── GitHub integration ────────────────────────────────────────────────────────
+
+export type GitHubStatus = {
+  connected: boolean;
+  login: string | null;
+  avatarUrl: string | null;
+  repoUrl: string | null;
+};
+
+export function fetchGitHubStatus(project: string) {
+  if (isMockMode()) {
+    return Promise.resolve<GitHubStatus>({ connected: false, login: null, avatarUrl: null, repoUrl: null });
+  }
+  return req<GitHubStatus>(`/api/github/status`, {
+    method: "POST",
+    body: JSON.stringify({ project }),
+  });
+}
+
+export function startGitHubConnect(project: string) {
+  return req<{ url: string }>("/api/github/connect/start", {
+    method: "POST",
+    body: JSON.stringify({ project }),
+  });
+}
+
+export function pushToGitHub(project: string) {
+  return req<{ ok: boolean; htmlUrl?: string; error?: string }>("/api/github/push", {
+    method: "POST",
+    body: JSON.stringify({ project }),
+  });
+}
+
+export function disconnectGitHub() {
+  return req<{ ok: boolean }>("/api/github/disconnect", { method: "POST" });
+}
+
 /** Ask the swarm control plane to skip an agent's phases (proxied via Workers API). */
 export function skipAgent(project: string, agentId: string) {
   if (isMockMode()) {

@@ -18,13 +18,14 @@ import type {
   SpineStage,
   WorkspaceFileCard,
 } from "@teamvinsible/shared";
-import { fetchArtifact, fetchHealth, fetchSpine, improviseProject, isMockMode, publishProject, restartRun, skipAgent, startPreview, stopRun, subscribeSpine } from "../api";
+import { disconnectGitHub, fetchArtifact, fetchGitHubStatus, fetchHealth, fetchSpine, improviseProject, isMockMode, publishProject, pushToGitHub, restartRun, skipAgent, startGitHubConnect, startPreview, stopRun, subscribeSpine, type GitHubStatus } from "../api";
 import { BrandLoader } from "../components/BrandLoader";
 import { useBrief } from "../components/BriefProvider";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { HealthCard } from "../components/HealthCard";
 import { ArtifactDoc } from "../components/ArtifactDoc";
 import { OrchestratorHub } from "../components/OrchestratorHub";
+import { GitHubCard } from "../components/GitHubCard";
 import { PreviewCard } from "../components/PreviewCard";
 import { PushSidebar } from "../components/PushSidebar";
 import { SegmentedTabs, TabExpandButton } from "../components/SegmentedTabs";
@@ -360,6 +361,11 @@ export function SpinePage() {
   const [restartBusy, setRestartBusy] = useState(false);
   const [improvBusy, setImprovBusy] = useState(false);
   const [improvError, setImprovError] = useState<string | null>(null);
+  const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
+  const [githubStatusLoading, setGithubStatusLoading] = useState(false);
+  const [githubConnectBusy, setGithubConnectBusy] = useState(false);
+  const [githubPushBusy, setGithubPushBusy] = useState(false);
+  const [githubPushError, setGithubPushError] = useState<string | null>(null);
   const [artifactBody, setArtifactBody] = useState<string | null>(null);
   const [artifactContentType, setArtifactContentType] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -593,6 +599,66 @@ export function SpinePage() {
       setImprovBusy(false);
     }
   }, [spine?.project]);
+
+  // Fetch GitHub status and watch for ?github=connected callback param
+  const loadGithubStatus = useCallback(async (pid: string) => {
+    setGithubStatusLoading(true);
+    try {
+      const s = await fetchGitHubStatus(pid);
+      setGithubStatus(s);
+    } catch {
+      // silently ignore
+    } finally {
+      setGithubStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const pid = spine?.project?.id;
+    if (!pid) return;
+    void loadGithubStatus(pid);
+    // Handle redirect back from GitHub OAuth
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.has("github")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [spine?.project?.id, loadGithubStatus]);
+
+  const onGithubConnect = useCallback(async () => {
+    const pid = spine?.project?.id;
+    if (!pid) return;
+    setGithubConnectBusy(true);
+    try {
+      const { url } = await startGitHubConnect(pid);
+      window.location.href = url;
+    } catch {
+      setGithubConnectBusy(false);
+    }
+  }, [spine?.project?.id]);
+
+  const onGithubPush = useCallback(async () => {
+    const pid = spine?.project?.id;
+    if (!pid) return;
+    setGithubPushBusy(true);
+    setGithubPushError(null);
+    try {
+      const result = await pushToGitHub(pid);
+      if (!result.ok) {
+        setGithubPushError(result.error || "Push failed");
+      } else {
+        await loadGithubStatus(pid);
+      }
+    } catch (err) {
+      setGithubPushError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGithubPushBusy(false);
+    }
+  }, [spine?.project?.id, loadGithubStatus]);
+
+  const onGithubDisconnect = useCallback(async () => {
+    await disconnectGitHub().catch(() => {});
+    setGithubStatus(null);
+  }, []);
 
   useEffect(() => {
     if (isMockMode()) {
@@ -1209,6 +1275,22 @@ export function SpinePage() {
               onImprovise={onImprovise}
               improvBusy={improvBusy}
               improvError={improvError}
+            />
+            <GitHubCard
+              projectId={spine.project?.id ?? ""}
+              status={githubStatus}
+              loading={githubStatusLoading}
+              pushBusy={githubPushBusy}
+              pushError={githubPushError}
+              connectBusy={githubConnectBusy}
+              canPush={
+                Boolean(spine.project) &&
+                (spine.project!.stage === "ready" ||
+                  /completed|ready|published|preview/i.test(spine.project!.status))
+              }
+              onConnect={onGithubConnect}
+              onPush={onGithubPush}
+              onDisconnect={onGithubDisconnect}
             />
       </BentoItem>
 
