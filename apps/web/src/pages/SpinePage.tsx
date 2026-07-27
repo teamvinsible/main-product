@@ -25,7 +25,6 @@ import { FlowCanvas } from "../components/FlowCanvas";
 import { HealthCard } from "../components/HealthCard";
 import { ArtifactDoc } from "../components/ArtifactDoc";
 import { OrchestratorHub } from "../components/OrchestratorHub";
-import { GitHubCard } from "../components/GitHubCard";
 import { PreviewCard } from "../components/PreviewCard";
 import { PushSidebar } from "../components/PushSidebar";
 import { SegmentedTabs, TabExpandButton } from "../components/SegmentedTabs";
@@ -1275,21 +1274,14 @@ export function SpinePage() {
               onImprovise={onImprovise}
               improvBusy={improvBusy}
               improvError={improvError}
+              githubStatus={githubStatus}
+              githubConnectBusy={githubConnectBusy}
+              githubPushBusy={githubPushBusy}
+              githubPushError={githubPushError}
+              onGithubConnect={onGithubConnect}
+              onGithubPush={onGithubPush}
+              onGithubDisconnect={onGithubDisconnect}
             />
-            {(publishUrl || spine.previewUrl) ? (
-              <GitHubCard
-                projectId={spine.project?.id ?? ""}
-                status={githubStatus}
-                loading={githubStatusLoading}
-                pushBusy={githubPushBusy}
-                pushError={githubPushError}
-                connectBusy={githubConnectBusy}
-                canPush={true}
-                onConnect={onGithubConnect}
-                onPush={onGithubPush}
-                onDisconnect={onGithubDisconnect}
-              />
-            ) : null}
       </BentoItem>
 
       <BentoItem {...bentoItemProps("artifacts")}>

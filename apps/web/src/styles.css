@@ -1509,31 +1509,22 @@ a:hover {
   50% { opacity: 0.4; transform: scale(0.75); }
 }
 
-/* ??? GitHub Card ??? */
-.github-card {
-  flex-shrink: 0;
-  padding: 10px 14px 12px;
+/* ??? GitHub section inside PreviewCard ??? */
+.preview-card-github {
+  border-top: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+  padding-top: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.github-card .preview-card-url {
-  margin: 0;
-}
-
-.github-card .preview-card-actions {
-  padding: 0;
-  margin: 0;
-}
-
-.github-card-row {
+.preview-card-github-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.github-card-label {
+.preview-card-github-label {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -6911,18 +6902,6 @@ a:hover {
   height: 100%;
 }
 
-.bento-item-preview {
-  flex-direction: column;
-  gap: 10px;
-  align-items: stretch;
-}
-
-.bento-item-preview > .preview-card,
-.bento-item-preview > .github-card {
-  height: auto;
-  flex-shrink: 0;
-  width: 100%;
-}
 
 .bento-item.is-editing > .card {
   border-color: color-mix(in srgb, var(--amber) 32%, var(--glass-border));
@@ -7072,7 +7051,7 @@ a:hover {
 
   .bento-item-preview {
     grid-column: span 2;
-    grid-row: span 6;
+    grid-row: span 4;
   }
 
   .bento-item-focus {
