@@ -67,5 +67,7 @@ jobs:
           VITE_API_ORIGIN: https://api.teamvinsible.com
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
       - name: Deploy web to Pages
         run: npx wrangler pages deploy apps/web/dist --project-name teamvinsible-web --branch main
