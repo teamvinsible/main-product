@@ -65,7 +65,7 @@ export function Shell() {
   const avatar = initialsFrom(displayName);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-ph-mask>
       <header className="topbar">
         <div className="topbar-left">
           <NavLink to="/dashboard" className="brand" aria-label="Teamvinsible home">

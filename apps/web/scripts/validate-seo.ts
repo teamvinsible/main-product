@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SITE_ORIGIN } from "../src/lib/site-config.ts";
+import { USE_CASES } from "../src/content/use-cases.ts";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(appRoot, "dist");
-const SITE_ORIGIN = "https://teamvinsible.com";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SEO validation failed: ${message}`);
@@ -39,6 +40,11 @@ async function htmlFile(route: string) {
 
 const publicRoutes = [
   { file: "index", url: `${SITE_ORIGIN}/` },
+  { file: "features", url: `${SITE_ORIGIN}/features` },
+  ...USE_CASES.map((useCase) => ({
+    file: `for/${useCase.slug}`,
+    url: `${SITE_ORIGIN}/for/${useCase.slug}`,
+  })),
   { file: "terms", url: `${SITE_ORIGIN}/terms` },
   { file: "privacy", url: `${SITE_ORIGIN}/privacy` },
 ];

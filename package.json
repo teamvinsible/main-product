@@ -24,5 +24,16 @@
   "engines": {
     "node": ">=18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true,
+    "core-js-pure@3.49.0": true,
+    "fsevents@2.3.3": true,
+    "sharp@0.34.5": true,
+    "workerd@1.20260714.1": true,
+    "core-js@3.49.0": true
+  }
 }

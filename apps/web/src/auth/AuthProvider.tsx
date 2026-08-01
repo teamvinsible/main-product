@@ -19,6 +19,8 @@ import {
   supabase,
   type SessionUser,
 } from "../lib/supabase";
+import { identifyUser, resetAnalytics, capture } from "../lib/analytics";
+import { AnalyticsEvent } from "../lib/analytics-events";
 
 type AuthContextValue = {
   ready: boolean;
@@ -52,9 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       setReady(true);
+      if (event === "SIGNED_IN" && next?.user) {
+        identifyUser(next.user.id, { email: next.user.email });
+        capture(AnalyticsEvent.SIGNED_IN);
+      }
+      if (event === "SIGNED_OUT") {
+        capture(AnalyticsEvent.SIGNED_OUT);
+        resetAnalytics();
+      }
     });
     return () => {
       alive = false;

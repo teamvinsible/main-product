@@ -5,6 +5,10 @@
 ## Canonical public pages
 
 - [Home](https://teamvinsible.com/): Product overview, capabilities, workflow, and frequently asked questions.
+- [Features](https://teamvinsible.com/features): Deep dive on the Nexus mediator, the specialist agent crew, and the coordination spine.
+- [For Founders](https://teamvinsible.com/for/founders): How solo and early-stage founders use Teamvinsible before their first hire.
+- [For Agencies](https://teamvinsible.com/for/agencies): How agencies run concurrent client briefs through a coordinated crew.
+- [For Product Teams](https://teamvinsible.com/for/product-teams): How product teams parallelize execution without pulling engineers off roadmap.
 - [Terms of Service](https://teamvinsible.com/terms): Terms governing use of the service.
 - [Privacy Policy](https://teamvinsible.com/privacy): Data collection, processing, retention, and user rights.
 

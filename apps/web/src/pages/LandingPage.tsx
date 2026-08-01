@@ -1,10 +1,11 @@
 import { ArrowRightOutlined, CheckOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button } from "antd";
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { BrandLogo } from "../components/BrandLogo";
-import { ThemeToggle } from "../components/ThemeToggle";
+import { MarketingFooter, MarketingHeader, useLandingMotion } from "../components/MarketingChrome";
+import { capture } from "../lib/analytics";
+import { AnalyticsEvent } from "../lib/analytics-events";
 
 const crew = ["Research", "Product", "Brand", "Design", "Engineering", "Review", "Social", "Email"];
 
@@ -76,90 +77,18 @@ function AgentGlyph({ label }: { label: string }) {
 
 export function LandingPage() {
   const { configured, session } = useAuth();
-
-  useEffect(() => {
-    const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
-    if (!("IntersectionObserver" in window)) {
-      elements.forEach((element) => element.classList.add("is-visible"));
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            (entry.target as HTMLElement).classList.add("is-visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.14, rootMargin: "0px 0px -8%" },
-    );
-
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const landing = document.querySelector<HTMLElement>(".landing");
-    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (!landing || !finePointer.matches || reducedMotion.matches) return;
-
-    let frame = 0;
-    const moveAttentionField = (event: PointerEvent) => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        landing.style.setProperty("--cursor-x", `${event.clientX}px`);
-        landing.style.setProperty("--cursor-y", `${event.clientY}px`);
-        landing.style.setProperty("--cursor-opacity", "1");
-      });
-    };
-    const hideAttentionField = () => landing.style.setProperty("--cursor-opacity", "0");
-
-    window.addEventListener("pointermove", moveAttentionField, { passive: true });
-    document.documentElement.addEventListener("mouseleave", hideAttentionField);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", moveAttentionField);
-      document.documentElement.removeEventListener("mouseleave", hideAttentionField);
-    };
-  }, []);
+  useLandingMotion();
 
   const primaryHref = session ? "/dashboard" : "/signup";
   const primaryLabel = session ? "Open your workspace" : configured ? "Build with your crew" : "Create your workspace";
 
+  const trackPrimaryCta = (location: string) =>
+    capture(AnalyticsEvent.CTA_CLICKED, { cta_location: location, cta_label: primaryLabel });
+
   return (
     <div className="landing">
       <a className="landing-skip" href="#main-content">Skip to content</a>
-      <header className="landing-top">
-        <Link to="/" className="landing-brand" aria-label="Teamvinsible home">
-          <BrandLogo />
-        </Link>
-        <nav className="landing-nav" aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="#features">Capabilities</a>
-          <a href="#difference">Why different</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-        <div className="landing-top-actions">
-          <ThemeToggle />
-          {session ? (
-            <Link to="/dashboard">
-              <Button type="primary">Open workspace</Button>
-            </Link>
-          ) : (
-            <>
-              <Link to="/login">
-                <Button type="text">Sign in</Button>
-              </Link>
-              <Link to="/signup">
-                <Button type="primary">Start building</Button>
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
+      <MarketingHeader />
 
       <main id="main-content">
         <section className="landing-hero" aria-labelledby="hero-title">
@@ -175,7 +104,7 @@ export function LandingPage() {
               Teamvinsible turns your idea into coordinated execution. Nexus leads specialist AI agents across research, product, brand, engineering, and launch—while you see every decision, artifact, and revision.
             </p>
             <div className="landing-cta">
-              <Link to={primaryHref}>
+              <Link to={primaryHref} onClick={() => trackPrimaryCta("hero")}>
                 <Button type="primary" size="large">
                   {primaryLabel} <ArrowRightOutlined />
                 </Button>
@@ -358,32 +287,13 @@ export function LandingPage() {
             <BrandLogo compact />
             <p>YOUR NEXT MOVE, COORDINATED</p>
             <h2 id="final-title">Bring the idea.<br /><em>We’ll bring the crew.</em></h2>
-            <Link to={primaryHref}><Button type="primary" size="large">{primaryLabel} <ArrowRightOutlined /></Button></Link>
+            <Link to={primaryHref} onClick={() => trackPrimaryCta("final")}><Button type="primary" size="large">{primaryLabel} <ArrowRightOutlined /></Button></Link>
             <small>No black box. No lost context. Just visible progress.</small>
           </div>
         </section>
       </main>
 
-      <footer className="landing-footer">
-        <Link to="/" aria-label="Teamvinsible home"><BrandLogo /></Link>
-        <p>AI agent coordination for ambitious teams.</p>
-        <nav aria-label="Footer navigation"><a href="#how-it-works">How it works</a><a href="#features">Capabilities</a><a href="#faq">FAQ</a><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/login">Sign in</Link></nav>
-        <small>
-          © {new Date().getFullYear()} Teamvinsible
-          <span className="footer-credit">
-            Made with ❤️ &amp; AI by Foundrylabs in{" "}
-            <img
-              className="footer-flag"
-              src="/flag-india.svg"
-              alt="India"
-              width={18}
-              height={12}
-              loading="lazy"
-              decoding="async"
-            />
-          </span>
-        </small>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

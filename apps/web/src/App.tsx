@@ -1,8 +1,11 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Link, Route, Routes, useParams } from "react-router-dom";
 import { BrandLoader } from "./components/BrandLoader";
+import { PostHogPageView } from "./components/PostHogPageView";
 import { SeoMetadata } from "./components/SeoMetadata";
+import { FeaturesPage } from "./pages/FeaturesPage";
 import { LandingPage } from "./pages/LandingPage";
+import { UseCasePage } from "./pages/UseCasePage";
 import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 
 const RequireAuth = lazy(() =>
@@ -60,9 +63,12 @@ export function App() {
   return (
     <>
       <SeoMetadata />
+      <PostHogPageView />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/for/:slug" element={<UseCasePage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/login" element={<LoginPage />} />

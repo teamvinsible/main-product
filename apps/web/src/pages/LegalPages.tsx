@@ -168,7 +168,8 @@ const privacySections: LegalSection[] = [
   {
     title: "6. Cookies and local storage",
     paragraphs: [
-      "We use necessary cookies and browser storage for authentication, security, theme selection, workspace preferences, and core functionality. We may use limited first-party measurement to understand performance and feature use. We do not currently use third-party advertising cookies on the Service.",
+      "We use necessary cookies and browser storage for authentication, security, theme selection, workspace preferences, and core functionality. We use PostHog for product analytics, to understand aggregate usage, performance, and feature adoption. We do not currently use third-party advertising cookies on the Service.",
+      "PostHog also records session replays—a reconstruction of on-screen activity such as navigation, clicks, and layout—to help us diagnose usability issues. Form field values (including any workspace content you type) are masked and are not captured in replays.",
     ],
   },
   {

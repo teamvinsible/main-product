@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { getUseCase } from "../content/use-cases";
+import { SITE_ORIGIN, SITE_NAME, SOCIAL_IMAGE, SOCIAL_IMAGE_ALT } from "../lib/site-config";
 
-const SITE_ORIGIN = "https://teamvinsible.com";
-const SITE_NAME = "Teamvinsible";
-const SOCIAL_IMAGE = `${SITE_ORIGIN}/social-card.png`;
 const HOME_TITLE = "Teamvinsible — AI Agent Coordination for Product Teams";
 const HOME_DESCRIPTION =
   "Turn one brief into coordinated execution with specialist AI agents for research, product, brand, engineering, review, and launch.";
@@ -116,7 +115,7 @@ function homepageJsonLd(): Record<string, unknown> {
   };
 }
 
-function legalJsonLd(title: string, description: string, path: string): Record<string, unknown> {
+function pageJsonLd(title: string, description: string, path: string): Record<string, unknown> {
   const url = `${SITE_ORIGIN}${path}`;
   return {
     "@context": "https://schema.org",
@@ -135,6 +134,34 @@ function legalJsonLd(title: string, description: string, path: string): Record<s
   };
 }
 
+function useCaseJsonLd(title: string, description: string, path: string, faqs: { question: string; answer: string }[]): Record<string, unknown> {
+  const url = `${SITE_ORIGIN}${path}`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      ...organizationGraph(),
+      {
+        "@type": "WebPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: title,
+        description,
+        inLanguage: "en",
+        isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${url}#faq`,
+        mainEntity: faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.question,
+          acceptedAnswer: { "@type": "Answer", text: faq.answer },
+        })),
+      },
+    ],
+  };
+}
+
 function routeSeo(pathname: string): SeoRoute {
   if (pathname === "/") {
     return {
@@ -147,6 +174,35 @@ function routeSeo(pathname: string): SeoRoute {
     };
   }
 
+  if (pathname === "/features") {
+    const title = "Features — Teamvinsible Coordination Spine";
+    const description =
+      "See how Nexus coordinates Research, Product, Brand, Design, Engineering, Review, Social, and Email agents through one visible, reviewable coordination spine.";
+    return {
+      title,
+      description,
+      canonical: `${SITE_ORIGIN}/features`,
+      robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      publicPage: true,
+      jsonLd: pageJsonLd(title, description, "/features"),
+    };
+  }
+
+  if (pathname.startsWith("/for/")) {
+    const slug = pathname.slice("/for/".length);
+    const useCase = getUseCase(slug);
+    if (useCase) {
+      return {
+        title: useCase.seoTitle,
+        description: useCase.seoDescription,
+        canonical: `${SITE_ORIGIN}${pathname}`,
+        robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+        publicPage: true,
+        jsonLd: useCaseJsonLd(useCase.seoTitle, useCase.seoDescription, pathname, useCase.faqs),
+      };
+    }
+  }
+
   if (pathname === "/terms") {
     const title = "Terms of Service — Teamvinsible";
     const description =
@@ -157,7 +213,7 @@ function routeSeo(pathname: string): SeoRoute {
       canonical: `${SITE_ORIGIN}/terms`,
       robots: "index, follow, max-snippet:-1",
       publicPage: true,
-      jsonLd: legalJsonLd(title, description, "/terms"),
+      jsonLd: pageJsonLd(title, description, "/terms"),
     };
   }
 
@@ -171,7 +227,7 @@ function routeSeo(pathname: string): SeoRoute {
       canonical: `${SITE_ORIGIN}/privacy`,
       robots: "index, follow, max-snippet:-1",
       publicPage: true,
-      jsonLd: legalJsonLd(title, description, "/privacy"),
+      jsonLd: pageJsonLd(title, description, "/privacy"),
     };
   }
 
@@ -289,7 +345,7 @@ export function SeoMetadata() {
       "og:image:width": seo.publicPage ? "1200" : undefined,
       "og:image:height": seo.publicPage ? "630" : undefined,
       "og:image:alt": seo.publicPage
-        ? "Teamvinsible: one brief, a whole AI crew in motion"
+        ? SOCIAL_IMAGE_ALT
         : undefined,
     };
     Object.entries(openGraph).forEach(([key, value]) => setMeta("property", key, value));
@@ -300,7 +356,7 @@ export function SeoMetadata() {
       "twitter:description": seo.publicPage ? seo.description : undefined,
       "twitter:image": seo.publicPage ? SOCIAL_IMAGE : undefined,
       "twitter:image:alt": seo.publicPage
-        ? "Teamvinsible: one brief, a whole AI crew in motion"
+        ? SOCIAL_IMAGE_ALT
         : undefined,
     };
     Object.entries(twitter).forEach(([key, value]) => setMeta("name", key, value));

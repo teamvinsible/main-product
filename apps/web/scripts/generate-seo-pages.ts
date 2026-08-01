@@ -1,12 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SITE_ORIGIN, SITE_NAME, SOCIAL_IMAGE, SOCIAL_IMAGE_ALT } from "../src/lib/site-config.ts";
+import { USE_CASES } from "../src/content/use-cases.ts";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(appRoot, "dist");
-const SITE_ORIGIN = "https://teamvinsible.com";
-const SITE_NAME = "Teamvinsible";
-const SOCIAL_IMAGE = `${SITE_ORIGIN}/social-card.png`;
 
 type RouteConfig = {
   output: string;
@@ -15,6 +14,9 @@ type RouteConfig = {
   description: string;
   robots: string;
   publicPage: boolean;
+  faqs?: { question: string; answer: string }[];
+  sitemapPriority?: number;
+  sitemapChangefreq?: string;
 };
 
 const organizationGraph = () => [
@@ -42,7 +44,7 @@ const organizationGraph = () => [
   },
 ];
 
-function pageJsonLd(title: string, description: string, route: string) {
+function pageJsonLd(title: string, description: string, route: string, faqs?: { question: string; answer: string }[]) {
   const url = `${SITE_ORIGIN}${route}`;
   return {
     "@context": "https://schema.org",
@@ -57,11 +59,48 @@ function pageJsonLd(title: string, description: string, route: string) {
         inLanguage: "en",
         isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
       },
+      ...(faqs?.length
+        ? [
+            {
+              "@type": "FAQPage",
+              "@id": `${url}#faq`,
+              mainEntity: faqs.map((faq) => ({
+                "@type": "Question",
+                name: faq.question,
+                acceptedAnswer: { "@type": "Answer", text: faq.answer },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 }
 
 const routes: RouteConfig[] = [
+  {
+    output: "features.html",
+    route: "/features",
+    title: "Features — Teamvinsible Coordination Spine",
+    description:
+      "See how Nexus coordinates Research, Product, Brand, Design, Engineering, Review, Social, and Email agents through one visible, reviewable coordination spine.",
+    robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+    publicPage: true,
+    sitemapPriority: 0.8,
+    sitemapChangefreq: "weekly",
+  },
+  ...USE_CASES.map(
+    (useCase): RouteConfig => ({
+      output: `for/${useCase.slug}.html`,
+      route: `/for/${useCase.slug}`,
+      title: useCase.seoTitle,
+      description: useCase.seoDescription,
+      robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      publicPage: true,
+      faqs: useCase.faqs,
+      sitemapPriority: 0.7,
+      sitemapChangefreq: "weekly",
+    }),
+  ),
   {
     output: "terms.html",
     route: "/terms",
@@ -70,6 +109,8 @@ const routes: RouteConfig[] = [
       "Read the terms governing access to and use of Teamvinsible's AI agent coordination platform.",
     robots: "index, follow, max-snippet:-1",
     publicPage: true,
+    sitemapPriority: 0.3,
+    sitemapChangefreq: "monthly",
   },
   {
     output: "privacy.html",
@@ -79,6 +120,8 @@ const routes: RouteConfig[] = [
       "Learn how Teamvinsible collects, uses, shares, retains, and protects information across its AI agent coordination platform.",
     robots: "index, follow, max-snippet:-1",
     publicPage: true,
+    sitemapPriority: 0.3,
+    sitemapChangefreq: "monthly",
   },
   {
     output: "login.html",
@@ -187,7 +230,7 @@ function renderRoute(baseHtml: string, config: RouteConfig) {
       "og:image:type": "image/png",
       "og:image:width": "1200",
       "og:image:height": "630",
-      "og:image:alt": "Teamvinsible: one brief, a whole AI crew in motion",
+      "og:image:alt": SOCIAL_IMAGE_ALT,
     };
     for (const [key, value] of Object.entries(openGraph)) {
       html = setMeta(html, "property", key, value);
@@ -197,12 +240,12 @@ function renderRoute(baseHtml: string, config: RouteConfig) {
       "twitter:title": config.title,
       "twitter:description": config.description,
       "twitter:image": SOCIAL_IMAGE,
-      "twitter:image:alt": "Teamvinsible: one brief, a whole AI crew in motion",
+      "twitter:image:alt": SOCIAL_IMAGE_ALT,
     };
     for (const [key, value] of Object.entries(twitter)) {
       html = setMeta(html, "name", key, value);
     }
-    html = setJsonLd(html, pageJsonLd(config.title, config.description, config.route));
+    html = setJsonLd(html, pageJsonLd(config.title, config.description, config.route, config.faqs));
   } else {
     for (const key of ogKeys) html = setMeta(html, "property", key, undefined);
     for (const key of twitterKeys) html = setMeta(html, "name", key, undefined);
@@ -236,6 +279,23 @@ function notFoundHtml() {
 </html>`;
 }
 
+function sitemapXml() {
+  const entries = [
+    { loc: `${SITE_ORIGIN}/`, changefreq: "weekly", priority: "1.0" },
+    ...routes
+      .filter((config) => config.publicPage)
+      .map((config) => ({
+        loc: `${SITE_ORIGIN}${config.route}`,
+        changefreq: config.sitemapChangefreq ?? "monthly",
+        priority: (config.sitemapPriority ?? 0.5).toFixed(1),
+      })),
+  ];
+  const urls = entries
+    .map((entry) => `  <url>\n    <loc>${entry.loc}</loc>\n    <changefreq>${entry.changefreq}</changefreq>\n    <priority>${entry.priority}</priority>\n  </url>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
+
 const baseHtml = await readFile(path.join(distDir, "index.html"), "utf8");
 for (const config of routes) {
   const outputPath = path.join(distDir, config.output);
@@ -243,3 +303,4 @@ for (const config of routes) {
   await writeFile(outputPath, renderRoute(baseHtml, config), "utf8");
 }
 await writeFile(path.join(distDir, "404.html"), notFoundHtml(), "utf8");
+await writeFile(path.join(distDir, "sitemap.xml"), sitemapXml(), "utf8");

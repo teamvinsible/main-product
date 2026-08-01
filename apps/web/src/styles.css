@@ -6047,7 +6047,7 @@ a:hover {
 .landing-footer { width: min(1240px, calc(100% - 2rem)); min-height: 190px; margin: 0 auto; padding: 3rem 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
 .landing-footer > a { width: max-content; }
 .landing-footer p { justify-self: end; margin: 0; color: var(--landing-muted); }
-.landing-footer nav { display: flex; gap: 1.5rem; color: var(--landing-muted); font-size: 0.78rem; }
+.landing-footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.85rem 1.5rem; color: var(--landing-muted); font-size: 0.78rem; }
 .landing-footer small { justify-self: end; color: var(--landing-muted); display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
 .footer-credit { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-size: 0.72rem; color: var(--landing-muted); }
 .footer-flag { display: inline-block; width: 18px; height: 12px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12); vertical-align: -1px; }
