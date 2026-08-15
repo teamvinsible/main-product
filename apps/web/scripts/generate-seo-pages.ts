@@ -3,9 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SITE_ORIGIN, SITE_NAME, SOCIAL_IMAGE, SOCIAL_IMAGE_ALT } from "../src/lib/site-config.ts";
 import { USE_CASES } from "../src/content/use-cases.ts";
+import { AGENTS } from "../src/content/agents.ts";
+import { COMPARISONS } from "../src/content/comparisons.ts";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(appRoot, "dist");
+
+type Breadcrumb = { name: string; path: string };
 
 type RouteConfig = {
   output: string;
@@ -15,6 +19,9 @@ type RouteConfig = {
   robots: string;
   publicPage: boolean;
   faqs?: { question: string; answer: string }[];
+  breadcrumb?: Breadcrumb[];
+  extraGraphNodes?: Record<string, unknown>[];
+  collectionOf?: { name: string; url: string }[];
   sitemapPriority?: number;
   sitemapChangefreq?: string;
 };
@@ -44,27 +51,47 @@ const organizationGraph = () => [
   },
 ];
 
-function pageJsonLd(title: string, description: string, route: string, faqs?: { question: string; answer: string }[]) {
-  const url = `${SITE_ORIGIN}${route}`;
+function breadcrumbGraph(id: string, trail: Breadcrumb[]) {
+  return {
+    "@type": "BreadcrumbList",
+    "@id": id,
+    itemListElement: trail.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.name,
+      item: `${SITE_ORIGIN}${crumb.path}`,
+    })),
+  };
+}
+
+function pageJsonLd(config: RouteConfig) {
+  const url = `${SITE_ORIGIN}${config.route}`;
+  const hasBreadcrumb = Boolean(config.breadcrumb?.length);
   return {
     "@context": "https://schema.org",
     "@graph": [
       ...organizationGraph(),
+      ...(hasBreadcrumb ? [breadcrumbGraph(`${url}#breadcrumb`, config.breadcrumb!)] : []),
       {
-        "@type": "WebPage",
+        "@type": config.collectionOf ? "CollectionPage" : "WebPage",
         "@id": `${url}#webpage`,
         url,
-        name: title,
-        description,
+        name: config.title,
+        description: config.description,
         inLanguage: "en",
         isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+        ...(hasBreadcrumb ? { breadcrumb: { "@id": `${url}#breadcrumb` } } : {}),
+        ...(config.collectionOf
+          ? { hasPart: config.collectionOf.map((item) => ({ "@type": "WebPage", name: item.name, url: item.url })) }
+          : {}),
       },
-      ...(faqs?.length
+      ...(config.extraGraphNodes ?? []),
+      ...(config.faqs?.length
         ? [
             {
               "@type": "FAQPage",
               "@id": `${url}#faq`,
-              mainEntity: faqs.map((faq) => ({
+              mainEntity: config.faqs.map((faq) => ({
                 "@type": "Question",
                 name: faq.question,
                 acceptedAnswer: { "@type": "Answer", text: faq.answer },
@@ -88,6 +115,63 @@ const routes: RouteConfig[] = [
     sitemapPriority: 0.8,
     sitemapChangefreq: "weekly",
   },
+  {
+    output: "agents.html",
+    route: "/agents",
+    title: "Agents — The Teamvinsible Specialist Crew",
+    description:
+      "Meet the eight specialist agents — Research, Product, Brand, Design, Engineering, Review, Social, and Email — that Nexus coordinates on every Teamvinsible project.",
+    robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+    publicPage: true,
+    breadcrumb: [{ name: "Home", path: "/" }, { name: "Agents", path: "/agents" }],
+    collectionOf: AGENTS.map((agent) => ({ name: agent.breadcrumbLabel, url: `${SITE_ORIGIN}/agents/${agent.slug}` })),
+    sitemapPriority: 0.8,
+    sitemapChangefreq: "weekly",
+  },
+  ...AGENTS.map(
+    (agent): RouteConfig => ({
+      output: `agents/${agent.slug}.html`,
+      route: `/agents/${agent.slug}`,
+      title: agent.seoTitle,
+      description: agent.seoDescription,
+      robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      publicPage: true,
+      faqs: agent.faqs,
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Agents", path: "/agents" },
+        { name: agent.breadcrumbLabel, path: `/agents/${agent.slug}` },
+      ],
+      extraGraphNodes: [
+        {
+          "@type": "Service",
+          "@id": `${SITE_ORIGIN}/agents/${agent.slug}#service`,
+          name: agent.breadcrumbLabel,
+          serviceType: "AI agent coordination platform",
+          description: agent.seoDescription,
+          provider: { "@id": `${SITE_ORIGIN}/#organization` },
+          areaServed: "Worldwide",
+          url: `${SITE_ORIGIN}/agents/${agent.slug}`,
+        },
+      ],
+      sitemapPriority: 0.7,
+      sitemapChangefreq: "weekly",
+    }),
+  ),
+  ...COMPARISONS.map(
+    (comparison): RouteConfig => ({
+      output: `vs/${comparison.slug}.html`,
+      route: `/vs/${comparison.slug}`,
+      title: comparison.seoTitle,
+      description: comparison.seoDescription,
+      robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      publicPage: true,
+      faqs: comparison.faqs,
+      breadcrumb: [{ name: "Home", path: "/" }, { name: comparison.breadcrumbLabel, path: `/vs/${comparison.slug}` }],
+      sitemapPriority: 0.7,
+      sitemapChangefreq: "weekly",
+    }),
+  ),
   ...USE_CASES.map(
     (useCase): RouteConfig => ({
       output: `for/${useCase.slug}.html`,
@@ -97,6 +181,7 @@ const routes: RouteConfig[] = [
       robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
       publicPage: true,
       faqs: useCase.faqs,
+      breadcrumb: [{ name: "Home", path: "/" }, { name: useCase.breadcrumbLabel, path: `/for/${useCase.slug}` }],
       sitemapPriority: 0.7,
       sitemapChangefreq: "weekly",
     }),
@@ -245,7 +330,7 @@ function renderRoute(baseHtml: string, config: RouteConfig) {
     for (const [key, value] of Object.entries(twitter)) {
       html = setMeta(html, "name", key, value);
     }
-    html = setJsonLd(html, pageJsonLd(config.title, config.description, config.route, config.faqs));
+    html = setJsonLd(html, pageJsonLd(config));
   } else {
     for (const key of ogKeys) html = setMeta(html, "property", key, undefined);
     for (const key of twitterKeys) html = setMeta(html, "name", key, undefined);

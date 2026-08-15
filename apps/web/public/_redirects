@@ -4,3 +4,7 @@
 /intake /dashboard.html 200
 /files /dashboard.html 200
 /files/* /dashboard.html 200
+
+# Google Search Console requires this exact .html URL to return 200 directly,
+# not Cloudflare Pages' default 308 redirect to the extension-less path.
+/google8582ffe50591b6b9.html /google8582ffe50591b6b9.html 200

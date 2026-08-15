@@ -135,11 +135,11 @@ export function FeaturesPage() {
           </div>
           <div className="features-grid">
             {crewRoles.map((role) => (
-              <article className="feature-card" key={role.title} data-reveal>
+              <Link className="feature-card" key={role.title} to={`/agents/${role.title.toLowerCase()}`} data-reveal>
                 <div className="feature-card-top"><span>{role.glyph}</span><i>↗</i></div>
                 <h3>{role.title}</h3>
                 <p>{role.copy}</p>
-              </article>
+              </Link>
             ))}
           </div>
         </section>

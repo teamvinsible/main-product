@@ -3,6 +3,9 @@ import { Navigate, Link, Route, Routes, useParams } from "react-router-dom";
 import { BrandLoader } from "./components/BrandLoader";
 import { PostHogPageView } from "./components/PostHogPageView";
 import { SeoMetadata } from "./components/SeoMetadata";
+import { AgentPage } from "./pages/AgentPage";
+import { AgentsHubPage } from "./pages/AgentsHubPage";
+import { ComparisonPage } from "./pages/ComparisonPage";
 import { FeaturesPage } from "./pages/FeaturesPage";
 import { LandingPage } from "./pages/LandingPage";
 import { UseCasePage } from "./pages/UseCasePage";
@@ -68,6 +71,9 @@ export function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/agents" element={<AgentsHubPage />} />
+          <Route path="/agents/:slug" element={<AgentPage />} />
+          <Route path="/vs/:slug" element={<ComparisonPage />} />
           <Route path="/for/:slug" element={<UseCasePage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />

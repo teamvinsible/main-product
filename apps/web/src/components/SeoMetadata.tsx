@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { getAgent, AGENTS } from "../content/agents";
+import { getComparison } from "../content/comparisons";
+import type { DeepPageContent } from "../content/deep-content";
 import { getUseCase } from "../content/use-cases";
 import { SITE_ORIGIN, SITE_NAME, SOCIAL_IMAGE, SOCIAL_IMAGE_ALT } from "../lib/site-config";
 
@@ -134,25 +137,46 @@ function pageJsonLd(title: string, description: string, path: string): Record<st
   };
 }
 
-function useCaseJsonLd(title: string, description: string, path: string, faqs: { question: string; answer: string }[]): Record<string, unknown> {
+function breadcrumbGraph(id: string, trail: { name: string; path: string }[]) {
+  return {
+    "@type": "BreadcrumbList",
+    "@id": id,
+    itemListElement: trail.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.name,
+      item: `${SITE_ORIGIN}${crumb.path}`,
+    })),
+  };
+}
+
+function deepPageJsonLd(
+  content: DeepPageContent,
+  path: string,
+  trail: { name: string; path: string }[],
+  extraNodes: Record<string, unknown>[] = [],
+): Record<string, unknown> {
   const url = `${SITE_ORIGIN}${path}`;
   return {
     "@context": "https://schema.org",
     "@graph": [
       ...organizationGraph(),
+      breadcrumbGraph(`${url}#breadcrumb`, trail),
       {
         "@type": "WebPage",
         "@id": `${url}#webpage`,
         url,
-        name: title,
-        description,
+        name: content.seoTitle,
+        description: content.seoDescription,
         inLanguage: "en",
         isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+        breadcrumb: { "@id": `${url}#breadcrumb` },
       },
+      ...extraNodes,
       {
         "@type": "FAQPage",
         "@id": `${url}#faq`,
-        mainEntity: faqs.map((faq) => ({
+        mainEntity: content.faqs.map((faq) => ({
           "@type": "Question",
           name: faq.question,
           acceptedAnswer: { "@type": "Answer", text: faq.answer },
@@ -188,6 +212,123 @@ function routeSeo(pathname: string): SeoRoute {
     };
   }
 
+  if (pathname === "/agents") {
+    const title = "Agents — The Teamvinsible Specialist Crew";
+    const description =
+      "Meet the eight specialist agents — Research, Product, Brand, Design, Engineering, Review, Social, and Email — that Nexus coordinates on every Teamvinsible project.";
+    return {
+      title,
+      description,
+      canonical: `${SITE_ORIGIN}/agents`,
+      robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      publicPage: true,
+      jsonLd: {
+        "@context": "https://schema.org",
+        "@graph": [
+          ...organizationGraph(),
+          breadcrumbGraph(`${SITE_ORIGIN}/agents#breadcrumb`, [
+            { name: "Home", path: "/" },
+            { name: "Agents", path: "/agents" },
+          ]),
+          {
+            "@type": "CollectionPage",
+            "@id": `${SITE_ORIGIN}/agents#webpage`,
+            url: `${SITE_ORIGIN}/agents`,
+            name: title,
+            description,
+            inLanguage: "en",
+            isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+            breadcrumb: { "@id": `${SITE_ORIGIN}/agents#breadcrumb` },
+            hasPart: AGENTS.map((agent) => ({
+              "@type": "WebPage",
+              name: agent.breadcrumbLabel,
+              url: `${SITE_ORIGIN}/agents/${agent.slug}`,
+            })),
+          },
+        ],
+      },
+    };
+  }
+
+  if (pathname.startsWith("/agents/")) {
+    const slug = pathname.slice("/agents/".length);
+    const agent = getAgent(slug);
+    if (agent) {
+      return {
+        title: agent.seoTitle,
+        description: agent.seoDescription,
+        canonical: `${SITE_ORIGIN}${pathname}`,
+        robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+        publicPage: true,
+        jsonLd: deepPageJsonLd(
+          agent,
+          pathname,
+          [
+            { name: "Home", path: "/" },
+            { name: "Agents", path: "/agents" },
+            { name: agent.breadcrumbLabel, path: pathname },
+          ],
+          [
+            {
+              "@type": "Service",
+              "@id": `${SITE_ORIGIN}${pathname}#service`,
+              name: agent.breadcrumbLabel,
+              serviceType: "AI agent coordination platform",
+              description: agent.seoDescription,
+              provider: { "@id": `${SITE_ORIGIN}/#organization` },
+              areaServed: "Worldwide",
+              url: `${SITE_ORIGIN}${pathname}`,
+            },
+          ],
+        ),
+      };
+    }
+  }
+
+  if (pathname.startsWith("/vs/")) {
+    const slug = pathname.slice("/vs/".length);
+    const comparison = getComparison(slug);
+    if (comparison) {
+      const url = `${SITE_ORIGIN}${pathname}`;
+      return {
+        title: comparison.seoTitle,
+        description: comparison.seoDescription,
+        canonical: url,
+        robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+        publicPage: true,
+        jsonLd: {
+          "@context": "https://schema.org",
+          "@graph": [
+            ...organizationGraph(),
+            breadcrumbGraph(`${url}#breadcrumb`, [
+              { name: "Home", path: "/" },
+              { name: comparison.breadcrumbLabel, path: pathname },
+            ]),
+            {
+              "@type": "WebPage",
+              "@id": `${url}#webpage`,
+              url,
+              name: comparison.seoTitle,
+              description: comparison.seoDescription,
+              inLanguage: "en",
+              isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+              breadcrumb: { "@id": `${url}#breadcrumb` },
+            },
+            {
+              "@type": "FAQPage",
+              "@id": `${url}#faq`,
+              mainEntity: comparison.faqs.map((faq) => ({
+                "@type": "Question",
+                name: faq.question,
+                acceptedAnswer: { "@type": "Answer", text: faq.answer },
+              })),
+            },
+          ],
+        },
+      };
+    }
+  }
+
   if (pathname.startsWith("/for/")) {
     const slug = pathname.slice("/for/".length);
     const useCase = getUseCase(slug);
@@ -198,7 +339,10 @@ function routeSeo(pathname: string): SeoRoute {
         canonical: `${SITE_ORIGIN}${pathname}`,
         robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
         publicPage: true,
-        jsonLd: useCaseJsonLd(useCase.seoTitle, useCase.seoDescription, pathname, useCase.faqs),
+        jsonLd: deepPageJsonLd(useCase, pathname, [
+          { name: "Home", path: "/" },
+          { name: useCase.breadcrumbLabel, path: pathname },
+        ]),
       };
     }
   }

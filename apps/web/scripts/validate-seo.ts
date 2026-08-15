@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SITE_ORIGIN } from "../src/lib/site-config.ts";
 import { USE_CASES } from "../src/content/use-cases.ts";
+import { AGENTS } from "../src/content/agents.ts";
+import { COMPARISONS } from "../src/content/comparisons.ts";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(appRoot, "dist");
@@ -41,6 +43,15 @@ async function htmlFile(route: string) {
 const publicRoutes = [
   { file: "index", url: `${SITE_ORIGIN}/` },
   { file: "features", url: `${SITE_ORIGIN}/features` },
+  { file: "agents", url: `${SITE_ORIGIN}/agents` },
+  ...AGENTS.map((agent) => ({
+    file: `agents/${agent.slug}`,
+    url: `${SITE_ORIGIN}/agents/${agent.slug}`,
+  })),
+  ...COMPARISONS.map((comparison) => ({
+    file: `vs/${comparison.slug}`,
+    url: `${SITE_ORIGIN}/vs/${comparison.slug}`,
+  })),
   ...USE_CASES.map((useCase) => ({
     file: `for/${useCase.slug}`,
     url: `${SITE_ORIGIN}/for/${useCase.slug}`,

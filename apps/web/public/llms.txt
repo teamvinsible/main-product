@@ -6,6 +6,17 @@
 
 - [Home](https://teamvinsible.com/): Product overview, capabilities, workflow, and frequently asked questions.
 - [Features](https://teamvinsible.com/features): Deep dive on the Nexus mediator, the specialist agent crew, and the coordination spine.
+- [Agents](https://teamvinsible.com/agents): Directory of the eight specialist agents; each has its own detail page.
+  - [Research Agent](https://teamvinsible.com/agents/research)
+  - [Product Agent](https://teamvinsible.com/agents/product)
+  - [Brand Agent](https://teamvinsible.com/agents/brand)
+  - [Design Agent](https://teamvinsible.com/agents/design)
+  - [Engineering Agent](https://teamvinsible.com/agents/engineering)
+  - [Review Agent](https://teamvinsible.com/agents/review)
+  - [Social Agent](https://teamvinsible.com/agents/social)
+  - [Email Agent](https://teamvinsible.com/agents/email)
+- [Teamvinsible vs AI App Builders](https://teamvinsible.com/vs/ai-app-builders): How Teamvinsible compares to one-shot AI app builders.
+- [Teamvinsible vs ChatGPT Workflows](https://teamvinsible.com/vs/chatgpt-workflows): How a coordinated agent crew compares to running work through a single chat thread.
 - [For Founders](https://teamvinsible.com/for/founders): How solo and early-stage founders use Teamvinsible before their first hire.
 - [For Agencies](https://teamvinsible.com/for/agencies): How agencies run concurrent client briefs through a coordinated crew.
 - [For Product Teams](https://teamvinsible.com/for/product-teams): How product teams parallelize execution without pulling engineers off roadmap.

@@ -2,8 +2,19 @@ import { useEffect } from "react";
 import { Button } from "antd";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { capture } from "../lib/analytics";
+import { AnalyticsEvent } from "../lib/analytics-events";
 import { BrandLogo } from "./BrandLogo";
 import { ThemeToggle } from "./ThemeToggle";
+
+/** Auth-aware primary CTA (href + label) shared by every marketing/landing page, plus a click tracker. */
+export function usePrimaryCta() {
+  const { configured, session } = useAuth();
+  const href = session ? "/dashboard" : "/signup";
+  const label = session ? "Open your workspace" : configured ? "Build with your crew" : "Create your workspace";
+  const track = (location: string) => capture(AnalyticsEvent.CTA_CLICKED, { cta_location: location, cta_label: label });
+  return { href, label, track };
+}
 
 /** Scroll-in reveal for `[data-reveal]` elements plus the cursor-following glow field on `.landing`. */
 export function useLandingMotion() {
@@ -59,8 +70,8 @@ export function useLandingMotion() {
 
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
+  { href: "/agents", label: "Agents" },
   { href: "/#how-it-works", label: "How it works" },
-  { href: "/#difference", label: "Why different" },
   { href: "/#faq", label: "FAQ" },
 ];
 
@@ -105,11 +116,14 @@ export function MarketingFooter() {
       <p>AI agent coordination for ambitious teams.</p>
       <nav aria-label="Footer navigation">
         <Link to="/features">Features</Link>
+        <Link to="/agents">Agents</Link>
         <a href="/#how-it-works">How it works</a>
         <a href="/#faq">FAQ</a>
         <Link to="/for/founders">Founders</Link>
         <Link to="/for/agencies">Agencies</Link>
         <Link to="/for/product-teams">Product teams</Link>
+        <Link to="/vs/ai-app-builders">vs. AI app builders</Link>
+        <Link to="/vs/chatgpt-workflows">vs. ChatGPT workflows</Link>
         <Link to="/terms">Terms</Link>
         <Link to="/privacy">Privacy</Link>
         <Link to="/login">Sign in</Link>
